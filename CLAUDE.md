@@ -26,7 +26,7 @@ La app es **mobile first**: toda vista se diseña primero para pantalla de telé
 composer install && npm install   # dependencias
 php artisan serve                 # servidor de desarrollo
 npm run dev                       # Vite en modo watch
-npm run build                     # build de assets (necesario para que los tests de página rendericen)
+npm run build                     # build de assets (los tests no lo necesitan: TestCase usa withoutVite)
 php artisan test                  # suite completa (PHPUnit)
 php artisan test --filter=Nombre  # un solo test
 vendor/bin/pint                   # formateo de código PHP (correr antes de commitear)
