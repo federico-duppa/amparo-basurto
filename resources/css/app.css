@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    /* Tipografía: Inter para contenido funcional, Bitter (slab) para marca y titulares */
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-brand: 'Bitter', ui-serif, Georgia, serif;
+
+    /* Paleta base (ver CLAUDE.md — no introducir azules ni blanco puro) */
+    --color-crema: #ede6d6;
+    --color-cuero: #5b3a29;
+    --color-ocre: #b8842e; /* solo como fondo; texto encima en negro */
+    --color-ocre-oscuro: #7a5417; /* variante de ocre apta para texto sobre crema */
+    --color-monte: #3f4a34; /* acción/CTA */
+    --color-negro: #1c1917; /* solo texto de contraste máximo */
+
+    /* Estados semánticos */
+    --color-teja: #8c3b2e; /* error / destructivo */
+    --color-yerba: #5a6b42; /* éxito */
+
+    /* Acentos de módulo */
+    --color-vino: #6e3b3b; /* módulo Todo */
+}
+
+@layer base {
+    body {
+        @apply bg-crema font-sans text-cuero antialiased;
+    }
+}
