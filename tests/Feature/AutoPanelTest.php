@@ -316,4 +316,144 @@ class AutoPanelTest extends TestCase
         $this->assertModelMissing($record);
         $this->assertModelMissing($fuel);
     }
+
+    // --- Editar auto ------------------------------------------------------
+
+    public function test_el_dueno_puede_editar_los_datos_del_auto(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['marca' => 'Fiat', 'modelo' => 'Uno']);
+
+        Livewire::test('auto.panel')
+            ->call('startEditingVehicle')
+            ->set('editMarca', 'Volkswagen')
+            ->set('editModelo', 'Gol')
+            ->set('editPatente', 'ab123cd')
+            ->call('saveVehicle')
+            ->assertHasNoErrors();
+
+        $vehicle->refresh();
+        $this->assertSame('Volkswagen', $vehicle->marca);
+        $this->assertSame('Gol', $vehicle->modelo);
+        $this->assertSame('AB123CD', $vehicle->patente);
+    }
+
+    public function test_un_usuario_con_quien_se_comparte_no_puede_editar_el_auto(): void
+    {
+        $owner = User::factory()->create();
+        $vehicle = Vehicle::factory()->for($owner)->create();
+        $vehicle->members()->attach($this->user);
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $vehicle->id)
+            ->call('startEditingVehicle');
+    }
+
+    // --- Compartir --------------------------------------------------------
+
+    public function test_el_dueno_puede_compartir_el_auto_por_usuario(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $otra = User::factory()->create(['username' => 'martina']);
+
+        Livewire::test('auto.panel')
+            ->set('shareUsername', 'Martina')
+            ->call('share')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('vehicle_user', [
+            'vehicle_id' => $vehicle->id,
+            'user_id' => $otra->id,
+        ]);
+    }
+
+    public function test_compartir_avisa_si_el_usuario_no_existe(): void
+    {
+        Vehicle::factory()->for($this->user)->create();
+
+        Livewire::test('auto.panel')
+            ->set('shareUsername', 'fantasma')
+            ->call('share')
+            ->assertHasErrors('shareUsername');
+
+        $this->assertDatabaseCount('vehicle_user', 0);
+    }
+
+    public function test_no_puede_compartir_dos_veces_con_la_misma_persona(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $otra = User::factory()->create(['username' => 'martina']);
+        $vehicle->members()->attach($otra);
+
+        Livewire::test('auto.panel')
+            ->set('shareUsername', 'martina')
+            ->call('share')
+            ->assertHasErrors('shareUsername');
+
+        $this->assertDatabaseCount('vehicle_user', 1);
+    }
+
+    public function test_el_dueno_puede_dejar_de_compartir(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $otra = User::factory()->create();
+        $vehicle->members()->attach($otra);
+
+        Livewire::test('auto.panel')->call('unshare', $otra->id);
+
+        $this->assertDatabaseCount('vehicle_user', 0);
+    }
+
+    public function test_quien_recibe_el_auto_compartido_lo_ve_con_sus_datos(): void
+    {
+        $owner = User::factory()->create(['name' => 'Fede']);
+        $vehicle = Vehicle::factory()->for($owner)->create(['marca' => 'Peugeot', 'modelo' => '208']);
+        MaintenanceItem::factory()->for($owner)->for($vehicle)->create(['name' => 'Cambio de aceite']);
+        FuelLog::factory()->for($owner)->for($vehicle)->create(['cost' => 33000]);
+        $vehicle->members()->attach($this->user);
+
+        // El usuario invitado (autenticado en setUp) entra y ve el auto compartido.
+        $this->get('/auto')
+            ->assertOk()
+            ->assertSee('Peugeot')
+            ->assertSee('Cambio de aceite')
+            ->assertSee('Compartido por Fede');
+    }
+
+    public function test_quien_recibe_el_auto_puede_cargar_combustible(): void
+    {
+        $owner = User::factory()->create();
+        $vehicle = Vehicle::factory()->for($owner)->create(['kilometraje' => 20000]);
+        $vehicle->members()->attach($this->user);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $vehicle->id)
+            ->set('fuelDate', '2026-07-02')
+            ->set('fuelMileage', 20500)
+            ->set('fuelCost', '30000')
+            ->call('addFuel')
+            ->assertHasNoErrors();
+
+        // La carga queda a nombre de quien la hizo (el invitado), no del dueño.
+        $this->assertDatabaseHas('fuel_logs', [
+            'vehicle_id' => $vehicle->id,
+            'user_id' => $this->user->id,
+            'mileage' => 20500,
+        ]);
+        $this->assertSame(20500, $vehicle->fresh()->kilometraje);
+    }
+
+    public function test_un_usuario_sin_acceso_no_puede_compartir_un_auto_ajeno(): void
+    {
+        $ajeno = Vehicle::factory()->create();
+        User::factory()->create(['username' => 'martina']);
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $ajeno->id)
+            ->set('shareUsername', 'martina')
+            ->call('share');
+    }
 }

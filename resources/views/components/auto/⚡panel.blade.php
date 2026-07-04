@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -16,6 +17,15 @@ new #[Title('Auto')] class extends Component
     public string $newModelo = '';
     public string $newPatente = '';
     public ?int $newKilometraje = null;
+
+    // Edición de los datos del auto (solo el dueño).
+    public bool $editingVehicle = false;
+    public string $editMarca = '';
+    public string $editModelo = '';
+    public string $editPatente = '';
+
+    // Compartir el auto con otra persona (solo el dueño).
+    public string $shareUsername = '';
 
     // Edición del kilometraje actual.
     public bool $editingKm = false;
@@ -42,7 +52,7 @@ new #[Title('Auto')] class extends Component
     {
         $this->logDate = now()->format('Y-m-d');
         $this->fuelDate = now()->format('Y-m-d');
-        $this->vehicleId = auth()->user()->vehicles()->min('id');
+        $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
     }
 
     // --- Auto -------------------------------------------------------------
@@ -84,10 +94,43 @@ new #[Title('Auto')] class extends Component
 
     public function selectVehicle(int $id): void
     {
-        auth()->user()->vehicles()->findOrFail($id);
+        auth()->user()->accessibleVehicles()->findOrFail($id);
 
         $this->vehicleId = $id;
-        $this->reset('editingKm', 'addingItem', 'loggingItemId');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId');
+    }
+
+    public function startEditingVehicle(): void
+    {
+        $vehicle = $this->requireOwnedVehicle();
+
+        $this->editMarca = $vehicle->marca;
+        $this->editModelo = $vehicle->modelo;
+        $this->editPatente = (string) $vehicle->patente;
+        $this->editingVehicle = true;
+        $this->resetValidation();
+    }
+
+    public function saveVehicle(): void
+    {
+        $vehicle = $this->requireOwnedVehicle();
+
+        $data = $this->validate([
+            'editMarca' => ['required', 'string', 'max:60'],
+            'editModelo' => ['required', 'string', 'max:60'],
+            'editPatente' => ['nullable', 'string', 'max:12'],
+        ], [
+            'editMarca.required' => 'Contame la marca del auto.',
+            'editModelo.required' => '¿Qué modelo es?',
+        ]);
+
+        $vehicle->update([
+            'marca' => trim($data['editMarca']),
+            'modelo' => trim($data['editModelo']),
+            'patente' => $data['editPatente'] ? strtoupper(trim($data['editPatente'])) : null,
+        ]);
+
+        $this->editingVehicle = false;
     }
 
     public function startEditingKm(): void
@@ -113,11 +156,56 @@ new #[Title('Auto')] class extends Component
 
     public function deleteVehicle(int $id): void
     {
+        // Solo el dueño puede eliminar el auto (borra también su historial).
         $vehicle = auth()->user()->vehicles()->findOrFail($id);
         $vehicle->delete();
 
-        $this->vehicleId = auth()->user()->vehicles()->min('id');
-        $this->reset('editingKm', 'addingItem', 'loggingItemId');
+        $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId');
+    }
+
+    // --- Compartir --------------------------------------------------------
+
+    public function share(): void
+    {
+        $vehicle = $this->requireOwnedVehicle();
+
+        $this->shareUsername = strtolower(trim($this->shareUsername));
+
+        $this->validate([
+            'shareUsername' => ['required', 'string', 'max:50'],
+        ], [
+            'shareUsername.required' => 'Decime el usuario de la persona con quien lo compartís.',
+        ]);
+
+        $user = User::where('username', $this->shareUsername)->first();
+
+        if (! $user) {
+            $this->addError('shareUsername', 'No encontré a nadie con ese usuario.');
+
+            return;
+        }
+
+        if ($vehicle->isOwnedBy($user)) {
+            $this->addError('shareUsername', 'Ese auto ya es tuyo.');
+
+            return;
+        }
+
+        if ($vehicle->members()->whereKey($user->id)->exists()) {
+            $this->addError('shareUsername', 'Ya lo estás compartiendo con esa persona.');
+
+            return;
+        }
+
+        $vehicle->members()->attach($user->id);
+
+        $this->reset('shareUsername');
+    }
+
+    public function unshare(int $userId): void
+    {
+        $this->requireOwnedVehicle()->members()->detach($userId);
     }
 
     // --- Mantenimientos ---------------------------------------------------
@@ -186,7 +274,7 @@ new #[Title('Auto')] class extends Component
             'mileage' => $data['logMileage'],
             'cost' => $data['logCost'],
         ]);
-        $record->user_id = $vehicle->user_id;
+        $record->user_id = auth()->id();
         $record->vehicle_id = $vehicle->id;
         $record->save();
 
@@ -217,7 +305,7 @@ new #[Title('Auto')] class extends Component
             'mileage' => $data['fuelMileage'],
             'cost' => $data['fuelCost'],
         ]);
-        $log->user_id = $vehicle->user_id;
+        $log->user_id = auth()->id();
         $log->save();
 
         $vehicle->bumpMileage((int) $data['fuelMileage']);
@@ -240,11 +328,24 @@ new #[Title('Auto')] class extends Component
             'interval_km' => $km,
             'interval_months' => $months,
         ]);
-        $item->user_id = $vehicle->user_id;
+        $item->user_id = auth()->id();
         $item->save();
     }
 
+    /**
+     * Auto al que el usuario tiene acceso (propio o compartido). Cualquier
+     * persona con acceso puede cargar mantenimientos y combustible.
+     */
     private function requireVehicle(): Vehicle
+    {
+        return auth()->user()->accessibleVehicles()->findOrFail($this->vehicleId);
+    }
+
+    /**
+     * Auto del que el usuario es dueño. Editar, eliminar y compartir son
+     * acciones reservadas al dueño.
+     */
+    private function requireOwnedVehicle(): Vehicle
     {
         return auth()->user()->vehicles()->findOrFail($this->vehicleId);
     }
@@ -262,13 +363,25 @@ new #[Title('Auto')] class extends Component
     #[Computed]
     public function vehicles(): Collection
     {
-        return auth()->user()->vehicles()->orderBy('id')->get();
+        return auth()->user()->accessibleVehicles()->with('user')->orderBy('vehicles.id')->get();
     }
 
     #[Computed]
     public function vehicle(): ?Vehicle
     {
         return $this->vehicles->firstWhere('id', $this->vehicleId) ?? $this->vehicles->first();
+    }
+
+    #[Computed]
+    public function isOwner(): bool
+    {
+        return $this->vehicle !== null && $this->vehicle->user_id === auth()->id();
+    }
+
+    #[Computed]
+    public function members(): Collection
+    {
+        return $this->vehicle?->members()->orderBy('name')->get() ?? collect();
     }
 
     #[Computed]
@@ -388,7 +501,7 @@ new #[Title('Auto')] class extends Component
                     <button type="button" wire:click="selectVehicle({{ $v->id }})"
                         @if ($v->id === $vehicle->id) aria-current="true" @endif
                         class="min-h-11 rounded-sm border px-3 text-sm {{ $v->id === $vehicle->id ? 'border-grafito bg-grafito/10 font-semibold text-grafito' : 'border-cuero/30 text-cuero/70 hover:text-cuero' }}">
-                        {{ $v->nombre() }}
+                        {{ $v->nombre() }}@unless ($v->user_id === auth()->id())<span class="ml-1 text-xs font-normal text-cuero/50">· compartido</span>@endunless
                     </button>
                 @endforeach
             </div>
@@ -396,24 +509,72 @@ new #[Title('Auto')] class extends Component
 
         {{-- Ficha del auto --}}
         <div class="rounded-sm border border-cuero/20 p-4">
-            <div class="flex items-start gap-3">
-                <div class="min-w-0 flex-1">
-                    <h2 class="font-brand text-2xl font-bold leading-tight">{{ $vehicle->nombre() }}</h2>
-                    @if ($vehicle->patente)
-                        <span class="mt-1 inline-block rounded-sm bg-ocre px-2 py-0.5 text-xs font-semibold tracking-wide text-negro">
-                            {{ $vehicle->patente }}
-                        </span>
+            @if ($this->editingVehicle)
+                <form wire:submit="saveVehicle" class="space-y-3">
+                    <h2 class="font-brand text-lg font-bold">Editar auto</h2>
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div>
+                            <label for="editMarca" class="mb-1 block text-sm font-medium">Marca</label>
+                            <input id="editMarca" type="text" wire:model="editMarca" autocomplete="off"
+                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                            @error('editMarca') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label for="editModelo" class="mb-1 block text-sm font-medium">Modelo</label>
+                            <input id="editModelo" type="text" wire:model="editModelo" autocomplete="off"
+                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                            @error('editModelo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label for="editPatente" class="mb-1 block text-sm font-medium">Patente <span class="font-normal text-cuero/60">(opcional)</span></label>
+                            <input id="editPatente" type="text" wire:model="editPatente" autocomplete="off"
+                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base uppercase focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                            @error('editPatente') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit"
+                            class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte">
+                            Guardar
+                        </button>
+                        <button type="button" wire:click="$set('editingVehicle', false)"
+                            class="min-h-11 rounded-sm px-3 text-cuero/70 hover:text-cuero">Cancelar</button>
+                    </div>
+                </form>
+            @else
+                <div class="flex items-start gap-3">
+                    <div class="min-w-0 flex-1">
+                        <h2 class="font-brand text-2xl font-bold leading-tight">{{ $vehicle->nombre() }}</h2>
+                        @if ($vehicle->patente)
+                            <span class="mt-1 inline-block rounded-sm bg-ocre px-2 py-0.5 text-xs font-semibold tracking-wide text-negro">
+                                {{ $vehicle->patente }}
+                            </span>
+                        @endif
+                        @unless ($this->isOwner)
+                            <p class="mt-1 text-xs text-cuero/60">Compartido por {{ $vehicle->user->name }}</p>
+                        @endunless
+                    </div>
+                    @if ($this->isOwner)
+                        <div class="flex shrink-0 items-center">
+                            <button type="button" wire:click="startEditingVehicle" aria-label="Editar auto"
+                                class="grid size-11 place-items-center text-cuero/60 hover:text-cuero focus-visible:outline-2 focus-visible:outline-grafito">
+                                {{-- Heroicon: pencil-square (outline) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                </svg>
+                            </button>
+                            <button type="button" wire:click="deleteVehicle({{ $vehicle->id }})"
+                                wire:confirm="Vas a eliminar este auto y todo su historial de mantenimientos y cargas. Esto no se puede deshacer."
+                                aria-label="Eliminar auto"
+                                class="grid size-11 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                </svg>
+                            </button>
+                        </div>
                     @endif
                 </div>
-                <button type="button" wire:click="deleteVehicle({{ $vehicle->id }})"
-                    wire:confirm="Vas a eliminar este auto y todo su historial de mantenimientos y cargas. Esto no se puede deshacer."
-                    aria-label="Eliminar auto"
-                    class="grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                </button>
-            </div>
+            @endif
 
             <div class="mt-4 border-t border-cuero/15 pt-3">
                 @if ($this->editingKm)
@@ -445,6 +606,49 @@ new #[Title('Auto')] class extends Component
                 @endif
             </div>
         </div>
+
+        {{-- Compartir (solo el dueño) --}}
+        @if ($this->isOwner)
+            <div class="space-y-3 rounded-sm border border-cuero/20 p-4">
+                <div>
+                    <h2 class="font-brand text-lg font-bold">Compartir</h2>
+                    <p class="text-sm text-cuero/60">Sumá a otra persona con su usuario y verá este auto con todos sus gastos y mantenimientos.</p>
+                </div>
+
+                @if ($this->members->isNotEmpty())
+                    <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
+                        @foreach ($this->members as $member)
+                            <li wire:key="member-{{ $member->id }}" class="flex items-center gap-2 py-2">
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium">{{ $member->name }}</p>
+                                    <p class="text-xs text-cuero/50">{{ '@'.$member->username }}</p>
+                                </div>
+                                <button type="button" wire:click="unshare({{ $member->id }})"
+                                    wire:confirm="Vas a dejar de compartir el auto con {{ $member->name }}. Ya no va a poder verlo."
+                                    aria-label="Dejar de compartir con {{ $member->name }}"
+                                    class="min-h-11 shrink-0 rounded-sm px-3 text-sm text-cuero/70 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                    Quitar
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                <form wire:submit="share" class="flex flex-wrap items-end gap-2">
+                    <div class="min-w-0 flex-1">
+                        <label for="shareUsername" class="mb-1 block text-sm font-medium">Usuario</label>
+                        <input id="shareUsername" type="text" wire:model="shareUsername" autocomplete="off" autocapitalize="none"
+                            placeholder="usuario"
+                            class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                    </div>
+                    <button type="submit" wire:loading.attr="disabled"
+                        class="min-h-11 shrink-0 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60">
+                        Compartir
+                    </button>
+                    @error('shareUsername') <p class="w-full text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                </form>
+            </div>
+        @endif
 
         {{-- Mantenimientos --}}
         <div class="space-y-3">

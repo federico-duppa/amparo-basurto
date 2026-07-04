@@ -6,7 +6,9 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -27,11 +29,36 @@ class User extends Authenticatable
     }
 
     /**
+     * Autos de los que este usuario es dueño.
+     *
      * @return HasMany<Vehicle, $this>
      */
     public function vehicles(): HasMany
     {
         return $this->hasMany(Vehicle::class);
+    }
+
+    /**
+     * Autos que otras personas compartieron con este usuario.
+     *
+     * @return BelongsToMany<Vehicle, $this>
+     */
+    public function sharedVehicles(): BelongsToMany
+    {
+        return $this->belongsToMany(Vehicle::class, 'vehicle_user')->withTimestamps();
+    }
+
+    /**
+     * Autos a los que el usuario tiene acceso: los propios más los compartidos.
+     * Se usa como relación de scoping (findOrFail sobre lo ajeno responde 404).
+     *
+     * @return Builder<Vehicle>
+     */
+    public function accessibleVehicles(): Builder
+    {
+        return Vehicle::query()->where(fn (Builder $query) => $query
+            ->where('vehicles.user_id', $this->id)
+            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
     }
 
     /**
