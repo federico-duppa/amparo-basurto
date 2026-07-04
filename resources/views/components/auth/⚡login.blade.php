@@ -64,11 +64,12 @@ new #[Title('Entrar')] class extends Component
         <p class="text-cuero/70">Hola. Decime quién sos.</p>
     </div>
 
-    <form wire:submit="login" class="space-y-4">
+    <form wire:submit="login" method="post" class="space-y-4">
         <div class="space-y-1">
             <label for="username" class="text-sm font-medium">Usuario</label>
             <input
                 id="username"
+                name="username"
                 type="text"
                 wire:model="username"
                 autocomplete="username"
@@ -81,6 +82,7 @@ new #[Title('Entrar')] class extends Component
             <label for="password" class="text-sm font-medium">Contraseña</label>
             <input
                 id="password"
+                name="password"
                 type="password"
                 wire:model="password"
                 autocomplete="current-password"
