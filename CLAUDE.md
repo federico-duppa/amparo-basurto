@@ -54,7 +54,7 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - Login con **usuario + contraseña** (sin email), hecho a mano con el core de Laravel — sin starter kits ni Fortify, para mantener la identidad y la voz de Amparo. Componentes `auth.login` (`/entrar`) y `auth.register` (`/registro`); logout por POST a `/salir`; rate limiting básico en el login.
 - **Registro restringido por whitelist**: la env `ALLOWED_USERNAMES` (nombres separados por coma, comparados en minúsculas; config en `config/amparo.php`) define quién puede registrarse. Lista vacía = registro cerrado.
 - **Cada usuario ve solo sus datos.** Todo modelo de módulo lleva `user_id` y las queries van **siempre** por la relación del usuario autenticado (`auth()->user()->todos()->findOrFail($id)` — lo ajeno responde 404, ni siquiera confirma que existe). Ningún módulo nuevo consulta modelos "globales"; los tests de módulo deben cubrir el scoping.
-- **Compartir elementos entre usuarios es un plan futuro**: cuando llegue, será mediante una relación explícita (tabla pivote + policies), no relajando el scoping actual.
+- **Compartir elementos entre usuarios se hace con una relación explícita, nunca relajando el scoping.** El módulo Auto es el primer caso: el auto tiene un dueño (`vehicles.user_id`) y se comparte con otras personas vía la pivote `vehicle_user`. El scoping pasa a ir por "autos accesibles" (propios ∪ compartidos) con `auth()->user()->accessibleVehicles()->findOrFail()`; las acciones de dueño (editar, eliminar, compartir) se chequean aparte contra la relación de propiedad. Los futuros módulos que compartan siguen este patrón (pivote + chequeo de dueño), no consultas globales.
 - **Biometría (passkeys/WebAuthn) pendiente** como mejora del login; requiere HTTPS y un paquete dedicado.
 
 ## Sistema de diseño
@@ -166,3 +166,4 @@ Cada módulo/sección tiene **su propio acento de color dentro de la misma palet
 | Módulo | Acento | Referencia |
 |---|---|---|
 | Todo — "Tareas" (`/tareas`) | Vino tierra | `#6E3B3B` (token `vino`, 7.2:1 sobre crema) |
+| Auto — "Auto" (`/auto`) | Grafito tierra | `#4A4038` (token `grafito`, 8.1:1 sobre crema) |

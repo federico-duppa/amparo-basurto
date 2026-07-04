@@ -22,6 +22,7 @@
 
     /* Acentos de módulo */
     --color-vino: #6e3b3b; /* módulo Todo */
+    --color-grafito: #4a4038; /* módulo Auto (8.1:1 sobre crema) */
 }
 
 @layer base {
