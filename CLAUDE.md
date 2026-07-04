@@ -41,6 +41,14 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
 - Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase` y `actingAs()`.
 
+### Deploy (Laravel Cloud)
+
+- Deploy automático en cada push a `main`, con **scale to zero** y **Postgres 18**. En desarrollo local se sigue usando SQLite; Cloud inyecta las `DB_*` de Postgres.
+- Por el scale to zero, **ningún estado puede vivir en el contenedor**: sesión, cache y cola usan driver `database` (ya configurado) y no se cambian a `file`. Todo SQL crudo nuevo debe funcionar en SQLite *y* Postgres.
+- En los deploy commands de Cloud tiene que estar `php artisan migrate --force`.
+- Variables de entorno a setear en Cloud: `APP_LOCALE=es`, `APP_FAKER_LOCALE=es_AR`, `ALLOWED_USERNAMES` (sin ella el registro queda cerrado).
+- Los proxies confiables están configurados en `bootstrap/app.php` (`trustProxies '*'`) porque la app corre detrás del balanceador de Cloud.
+
 ### Autenticación y datos por usuario
 
 - Login con **usuario + contraseña** (sin email), hecho a mano con el core de Laravel — sin starter kits ni Fortify, para mantener la identidad y la voz de Amparo. Componentes `auth.login` (`/entrar`) y `auth.register` (`/registro`); logout por POST a `/salir`; rate limiting básico en el login.
