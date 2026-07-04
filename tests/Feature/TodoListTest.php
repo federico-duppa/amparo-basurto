@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Todo;
+use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -10,6 +12,16 @@ use Tests\TestCase;
 class TodoListTest extends TestCase
 {
     use RefreshDatabase;
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user);
+    }
 
     public function test_la_pagina_de_tareas_renderiza_el_componente(): void
     {
@@ -37,7 +49,11 @@ class TodoListTest extends TestCase
             ->assertSet('title', '')
             ->assertHasNoErrors();
 
-        $this->assertDatabaseHas('todos', ['title' => 'Comprar yerba', 'completed_at' => null]);
+        $this->assertDatabaseHas('todos', [
+            'title' => 'Comprar yerba',
+            'user_id' => $this->user->id,
+            'completed_at' => null,
+        ]);
     }
 
     public function test_el_titulo_es_obligatorio(): void
@@ -60,7 +76,7 @@ class TodoListTest extends TestCase
 
     public function test_puede_completar_y_reabrir_una_tarea(): void
     {
-        $todo = Todo::factory()->create();
+        $todo = Todo::factory()->for($this->user)->create();
 
         Livewire::test('todo.todo-list')->call('toggle', $todo->id);
         $this->assertNotNull($todo->fresh()->completed_at);
@@ -71,7 +87,7 @@ class TodoListTest extends TestCase
 
     public function test_puede_eliminar_una_tarea(): void
     {
-        $todo = Todo::factory()->create();
+        $todo = Todo::factory()->for($this->user)->create();
 
         Livewire::test('todo.todo-list')->call('delete', $todo->id);
 
@@ -80,10 +96,43 @@ class TodoListTest extends TestCase
 
     public function test_las_pendientes_se_listan_antes_que_las_completadas(): void
     {
-        $completada = Todo::factory()->completed()->create(['title' => 'Tarea completada']);
-        $pendiente = Todo::factory()->create(['title' => 'Tarea pendiente']);
+        Todo::factory()->for($this->user)->completed()->create(['title' => 'Tarea completada']);
+        Todo::factory()->for($this->user)->create(['title' => 'Tarea pendiente']);
 
         $this->get('/tareas')
             ->assertSeeInOrder(['Tarea pendiente', 'Tarea completada']);
+    }
+
+    public function test_no_ve_las_tareas_de_otros_usuarios(): void
+    {
+        Todo::factory()->create(['title' => 'Tarea de otra persona']);
+        Todo::factory()->for($this->user)->create(['title' => 'Tarea propia']);
+
+        $this->get('/tareas')
+            ->assertSee('Tarea propia')
+            ->assertDontSee('Tarea de otra persona');
+    }
+
+    public function test_no_puede_completar_tareas_ajenas(): void
+    {
+        $ajena = Todo::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('todo.todo-list')->call('toggle', $ajena->id);
+    }
+
+    public function test_no_puede_eliminar_tareas_ajenas(): void
+    {
+        $ajena = Todo::factory()->create();
+
+        try {
+            Livewire::test('todo.todo-list')->call('delete', $ajena->id);
+            $this->fail('Una tarea ajena no debería poder eliminarse.');
+        } catch (ModelNotFoundException) {
+            // esperado: para este usuario esa tarea no existe
+        }
+
+        $this->assertModelExists($ajena);
     }
 }

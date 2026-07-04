@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Todo;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -29,25 +28,27 @@ new #[Title('Tareas')] class extends Component
     {
         $this->validate();
 
-        Todo::create(['title' => trim($this->title)]);
+        auth()->user()->todos()->create(['title' => trim($this->title)]);
 
         $this->reset('title');
     }
 
-    public function toggle(Todo $todo): void
+    public function toggle(int $id): void
     {
+        $todo = auth()->user()->todos()->findOrFail($id);
+
         $todo->update(['completed_at' => $todo->isCompleted() ? null : now()]);
     }
 
-    public function delete(Todo $todo): void
+    public function delete(int $id): void
     {
-        $todo->delete();
+        auth()->user()->todos()->findOrFail($id)->delete();
     }
 
     #[Computed]
     public function todos(): Collection
     {
-        return Todo::query()
+        return auth()->user()->todos()
             ->orderByRaw('(completed_at is not null) asc')
             ->orderByDesc('id')
             ->get();

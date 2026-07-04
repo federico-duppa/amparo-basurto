@@ -39,7 +39,15 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - **Layout único** en `resources/views/layouts/app.blade.php` (`layouts::app`, el default de Livewire): trae fuentes, ícono, la bottom nav móvil que se vuelve sidebar en `lg:`, y el slot de contenido. Todo módulo nuevo se cuelga de este layout y agrega su entrada en la nav.
 - **Design tokens** en `resources/css/app.css` vía `@theme` de Tailwind 4 (config CSS-first, no hay `tailwind.config.js`): ahí viven la paleta (`crema`, `cuero`, `ocre`, `monte`, `teja`, `yerba`, acentos de módulo…) y las fuentes (`font-sans` = Inter, `font-brand` = Bitter). Usar siempre los tokens, nunca hex sueltos en las vistas.
 - **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
-- Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase`.
+- Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase` y `actingAs()`.
+
+### Autenticación y datos por usuario
+
+- Login con **usuario + contraseña** (sin email), hecho a mano con el core de Laravel — sin starter kits ni Fortify, para mantener la identidad y la voz de Amparo. Componentes `auth.login` (`/entrar`) y `auth.register` (`/registro`); logout por POST a `/salir`; rate limiting básico en el login.
+- **Registro restringido por whitelist**: la env `ALLOWED_USERNAMES` (nombres separados por coma, comparados en minúsculas; config en `config/amparo.php`) define quién puede registrarse. Lista vacía = registro cerrado.
+- **Cada usuario ve solo sus datos.** Todo modelo de módulo lleva `user_id` y las queries van **siempre** por la relación del usuario autenticado (`auth()->user()->todos()->findOrFail($id)` — lo ajeno responde 404, ni siquiera confirma que existe). Ningún módulo nuevo consulta modelos "globales"; los tests de módulo deben cubrir el scoping.
+- **Compartir elementos entre usuarios es un plan futuro**: cuando llegue, será mediante una relación explícita (tabla pivote + policies), no relajando el scoping actual.
+- **Biometría (passkeys/WebAuthn) pendiente** como mejora del login; requiere HTTPS y un paquete dedicado.
 
 ## Sistema de diseño
 
