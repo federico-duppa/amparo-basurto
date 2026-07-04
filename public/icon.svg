@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <!-- Sello Amparo Basurto: monograma AB como marca de hacienda.
+         A sin travesaño + B de dos semicírculos; trazo uniforme, terminaciones rectas. -->
+    <rect width="64" height="64" rx="12" fill="#3F4A34"/>
+    <g fill="none" stroke="#EDE6D6" stroke-width="4" stroke-linecap="square">
+        <path d="M14 46 L25 18 L36 46"/>
+        <path d="M42 18 V46"/>
+        <path d="M42 18 a7 7 0 0 1 0 14 a7 7 0 0 1 0 14"/>
+    </g>
+</svg>

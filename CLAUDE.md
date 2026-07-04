@@ -22,20 +22,24 @@ La app es **mobile first**: toda vista se diseña primero para pantalla de telé
 
 ### Comandos
 
-El proyecto aún no está scaffoldeado. Una vez creado el esqueleto de Laravel, los comandos estándar aplican:
-
 ```bash
 composer install && npm install   # dependencias
 php artisan serve                 # servidor de desarrollo
 npm run dev                       # Vite en modo watch
-npm run build                     # build de assets
-php artisan test                  # suite completa
+npm run build                     # build de assets (necesario para que los tests de página rendericen)
+php artisan test                  # suite completa (PHPUnit)
 php artisan test --filter=Nombre  # un solo test
-vendor/bin/pint                   # formateo de código PHP
-php artisan migrate               # migraciones
+vendor/bin/pint                   # formateo de código PHP (correr antes de commitear)
+php artisan migrate               # migraciones (SQLite en database/database.sqlite)
 ```
 
-Al scaffoldear, actualizar esta sección si los comandos reales difieren (p. ej. si se usa Pest directamente, un `Makefile`, o Laravel Sail).
+### Arquitectura
+
+- **Livewire 4 con componentes single-file**: cada componente vive en `resources/views/components/<módulo>/⚡<nombre>.blade.php` (clase anónima PHP arriba, template abajo). Se rutean como páginas completas con `Route::livewire('/ruta', 'módulo.nombre')` en `routes/web.php`.
+- **Layout único** en `resources/views/layouts/app.blade.php` (`layouts::app`, el default de Livewire): trae fuentes, ícono, la bottom nav móvil que se vuelve sidebar en `lg:`, y el slot de contenido. Todo módulo nuevo se cuelga de este layout y agrega su entrada en la nav.
+- **Design tokens** en `resources/css/app.css` vía `@theme` de Tailwind 4 (config CSS-first, no hay `tailwind.config.js`): ahí viven la paleta (`crema`, `cuero`, `ocre`, `monte`, `teja`, `yerba`, acentos de módulo…) y las fuentes (`font-sans` = Inter, `font-brand` = Bitter). Usar siempre los tokens, nunca hex sueltos en las vistas.
+- **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
+- Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase`.
 
 ## Sistema de diseño
 
@@ -145,4 +149,4 @@ Cada módulo/sección tiene **su propio acento de color dentro de la misma palet
 
 | Módulo | Acento | Referencia |
 |---|---|---|
-| _(sin módulos aún)_ | — | — |
+| Todo — "Tareas" (`/tareas`) | Vino tierra | `#6E3B3B` (token `vino`, 7.2:1 sobre crema) |
