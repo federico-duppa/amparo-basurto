@@ -1,0 +1,136 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\EnvelopeFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Envelope extends Model
+{
+    /** @use HasFactory<EnvelopeFactory> */
+    use HasFactory;
+
+    public const KIND_AHORRO = 'ahorro';
+
+    public const KIND_GASTO = 'gasto';
+
+    public const CURRENCIES = ['ARS', 'USD'];
+
+    protected $fillable = [
+        'name',
+        'kind',
+        'currency',
+        'indexed',
+        'target_amount',
+        'target_month',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'indexed' => 'boolean',
+            'target_amount' => 'decimal:2',
+            'target_month' => 'date',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return HasMany<EnvelopeMovement, $this>
+     */
+    public function movements(): HasMany
+    {
+        return $this->hasMany(EnvelopeMovement::class);
+    }
+
+    /**
+     * @return HasMany<Expense, $this>
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    public function isAhorro(): bool
+    {
+        return $this->kind === self::KIND_AHORRO;
+    }
+
+    public function isGasto(): bool
+    {
+        return $this->kind === self::KIND_GASTO;
+    }
+
+    /**
+     * El saldo emerge de la historia: entradas − salidas − gastos imputados.
+     * Nunca se edita a mano.
+     */
+    public function balance(): float
+    {
+        $in = (float) $this->movements()
+            ->whereIn('type', [EnvelopeMovement::APORTE, EnvelopeMovement::TRANSFER_IN])
+            ->sum('amount');
+
+        $out = (float) $this->movements()
+            ->whereIn('type', [EnvelopeMovement::RETIRO, EnvelopeMovement::TRANSFER_OUT])
+            ->sum('amount');
+
+        $spent = (float) $this->expenses()->sum('amount');
+
+        return $in - $out - $spent;
+    }
+
+    /**
+     * El objetivo vigente. En sobres indexados lo guardado es siempre nominal;
+     * lo único que se indexa es la vara: el objetivo re-expresado por IPC
+     * desde su mes base hasta hoy.
+     */
+    public function currentTarget(): ?float
+    {
+        if ($this->target_amount === null) {
+            return null;
+        }
+
+        $target = (float) $this->target_amount;
+
+        if ($this->indexed && $this->target_month !== null) {
+            $target *= InflationRate::factorBetween($this->target_month, now());
+        }
+
+        return $target;
+    }
+
+    /**
+     * Cuánto falta aportar (nominal, hoy) para re-alcanzar el objetivo vigente.
+     */
+    public function gap(): ?float
+    {
+        $target = $this->currentTarget();
+
+        return $target === null ? null : max(0, $target - $this->balance());
+    }
+
+    /**
+     * Progreso contra el objetivo vigente, en porcentaje (sin tope).
+     */
+    public function progress(): ?float
+    {
+        $target = $this->currentTarget();
+
+        if ($target === null || $target <= 0) {
+            return null;
+        }
+
+        return max(0, $this->balance()) / $target * 100;
+    }
+}
