@@ -13,6 +13,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::livewire('/tareas', 'todo.todo-list')->name('todos');
+    Route::livewire('/auto', 'auto.panel')->name('auto');
 
     Route::post('/salir', function (Request $request) {
         Auth::logout();

@@ -27,6 +27,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Vehicle, $this>
+     */
+    public function vehicles(): HasMany
+    {
+        return $this->hasMany(Vehicle::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

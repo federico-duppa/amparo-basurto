@@ -166,3 +166,4 @@ Cada módulo/sección tiene **su propio acento de color dentro de la misma palet
 | Módulo | Acento | Referencia |
 |---|---|---|
 | Todo — "Tareas" (`/tareas`) | Vino tierra | `#6E3B3B` (token `vino`, 7.2:1 sobre crema) |
+| Auto — "Auto" (`/auto`) | Grafito tierra | `#4A4038` (token `grafito`, 8.1:1 sobre crema) |
