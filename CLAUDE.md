@@ -12,6 +12,14 @@ Aplicación multipropósito de asistencia personal (GTD, listas, reportes y otro
 - **Livewire** (interactividad; preferir componentes Livewire antes que JS a medida)
 - **Tailwind CSS** (todo el estilo; la paleta y tipografías de abajo se definen como design tokens en la config de Tailwind, no como valores sueltos en las vistas)
 
+## Mobile first
+
+La app es **mobile first**: toda vista se diseña primero para pantalla de teléfono y se expande hacia desktop, nunca al revés. En Tailwind esto significa que los estilos base (sin prefijo) son los de móvil y los breakpoints (`sm:`, `md:`, `lg:`…) agregan la adaptación a pantallas más grandes. Implicaciones prácticas:
+
+- Navegación, formularios y listas deben ser cómodos con una mano: targets táctiles generosos, acciones principales al alcance del pulgar.
+- Las tablas y reportes densos necesitan una variante móvil pensada (cards apiladas, scroll horizontal contenido), no una tabla de desktop encogida.
+- Probar/razonar cada componente Livewire primero en viewport móvil antes de ajustar desktop.
+
 ### Comandos
 
 El proyecto aún no está scaffoldeado. Una vez creado el esqueleto de Laravel, los comandos estándar aplican:
