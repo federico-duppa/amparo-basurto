@@ -62,6 +62,26 @@ class User extends Authenticatable
     }
 
     /**
+     * Sobres del módulo Plata (de ahorro y de gasto previsto).
+     *
+     * @return HasMany<Envelope, $this>
+     */
+    public function envelopes(): HasMany
+    {
+        return $this->hasMany(Envelope::class);
+    }
+
+    /**
+     * Gastos efectivos del módulo Plata.
+     *
+     * @return HasMany<Expense, $this>
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
