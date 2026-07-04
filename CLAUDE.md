@@ -41,25 +41,108 @@ Al scaffoldear, actualizar esta sección si los comandos reales difieren (p. ej.
 
 Identidad: multipropósito con un **guiño discreto a lo criollo** — no un disfraz gauchesco literal, sino texturas y proporciones que recuerdan cuero curtido, papel de estancia, sellos y tipografía de otra época, aplicado con disciplina moderna de UI. La app tiene que seguir siendo legible y rápida de usar; lo criollo es acento, nunca obstáculo.
 
+**No hay modo oscuro y no se va a agregar.** La identidad "papel viejo" es inherentemente clara; la app es lo que es. No introducir `dark:` variants ni preparar tokens para un tema oscuro.
+
 ### Paleta (definir como tokens en Tailwind)
 
 | Rol | Color | Referencia | Uso |
 |---|---|---|---|
-| Fondo base | Crema/hueso apagado | `#EDE6D6` | Fondo general, como papel viejo. **Nunca blanco puro.** |
-| Texto/iconos principales | Marrón cuero oscuro | `#5B3A29` | Color por defecto de texto e íconos |
-| Acento secundario | Ocre/mostaza | `#B8842E` | Badges, highlights, énfasis puntual |
-| Acción/CTA | Verde monte oscuro | `#3F4A34` | Botones primarios, links de acción. **Reemplaza al típico azul** — no introducir azules. |
-| Alto contraste | Negro casi puro | — | Solo para texto que necesite contraste máximo. **Nunca como fondo.** |
+| Fondo base | Crema/hueso apagado | `#EDE6D6` | Fondo general, **tinte plano** — sin texturas, noise ni patrones. **Nunca blanco puro.** |
+| Texto/iconos principales | Marrón cuero oscuro | `#5B3A29` | Color por defecto de texto e íconos (8.1:1 sobre crema) |
+| Acento secundario | Ocre/mostaza | `#B8842E` | Solo como **fondo** de badges/highlights. Ver regla del ocre abajo. |
+| Ocre oscuro (texto) | Variante de ocre | `#7A5417` | Versión del ocre apta para texto sobre crema (5.4:1) |
+| Acción/CTA | Verde monte oscuro | `#3F4A34` | Botones primarios, links de acción. **Reemplaza al típico azul** — no introducir azules. Texto crema encima. |
+| Alto contraste | Negro casi puro | `#1C1917` | Solo para texto que necesite contraste máximo. **Nunca como fondo** (excepto texto sobre ocre, ver abajo). |
+
+**Regla del ocre:** `#B8842E` sobre crema da ~2.6:1 y **no pasa WCAG AA — nunca usarlo como color de texto o ícono**. Se usa como fondo (badge, highlight, barra de énfasis) con texto **negro casi puro** encima (6.4:1; el marrón cuero sobre ocre tampoco alcanza). Cuando el énfasis tiene que ser tipográfico, usar el ocre oscuro `#7A5417`.
+
+#### Colores semánticos de estado
+
+Dentro de la misma familia tierra — no introducir el rojo/verde/amarillo genéricos de librería:
+
+| Estado | Color | Referencia | Uso |
+|---|---|---|---|
+| Error / destructivo | Rojo teja | `#8C3B2E` | Mensajes de error, botones destructivos (6.1:1 sobre crema; texto crema encima en botones) |
+| Éxito | Verde yerba | `#5A6B42` | Confirmaciones, checks (4.7:1 sobre crema). Distinto del verde monte para no confundir estado con acción. |
+| Advertencia | Ocre | `#B8842E` fondo / `#7A5417` texto | Sigue la regla del ocre |
 
 ### Tipografía
 
-- **Serif con carácter** para el nombre/marca y titulares de identidad: aire de tipografía de sello o cartel de campo — un serif tipo **slab**, no gótico ni script.
-- **Sans-serif limpio y neutro** para todo el contenido funcional (reportes, listas, GTD, formularios).
+- **Marca y titulares de identidad: Bitter** (Google Fonts) — serif slab con calidez de imprenta, aire de sello/cartel de campo sin caer en lo gótico ni script. Pesos 600/700. Solo para el nombre de la app, titulares de sección y piezas de identidad (reportes impresos, splash).
+- **Contenido funcional: Inter** (Google Fonts) — sans neutro y muy legible para reportes, listas, GTD y formularios. Pesos 400/500/600.
+- Escala mobile-first contenida: cuerpo `text-base`, secundario `text-sm`, titulares de pantalla `text-2xl`/`text-3xl` en Bitter. No multiplicar tamaños intermedios.
+
+### Voz de Amparo
+
+Amparo habla en **primera persona y con voseo** (es-AR): es una persona que ayuda, no un sistema que reporta.
+
+- Cálida y concisa; nunca robótica, nunca corporativa. Prohibido "Error 500", "Operación exitosa", "El registro ha sido creado".
+- **Sobria cuando importa:** en errores graves y acciones destructivas el tono se vuelve serio y directo, sin calidez impostada.
+- Sin emojis, sin signos de exclamación dobles, sin diminutivos empalagosos.
+
+Ejemplos que fijan el patrón:
+
+| Situación | Amparo dice |
+|---|---|
+| Estado vacío (GTD) | "Todavía no anotaste nada. Cuando quieras, empezamos." |
+| Confirmación | "Listo, quedó guardado." |
+| Error recuperable | "No pude guardar eso. Probá de nuevo en un momento." |
+| Búsqueda sin resultados | "No encontré nada con ese nombre." |
+| Acción destructiva | "Vas a eliminar 12 tareas. Esto no se puede deshacer." |
 
 ### Logo/símbolo
 
-Nada literal (lazo, sombrero). Una forma **abstracta y geométrica** que sugiera un sello o una marca de hacienda (marca de ganado) simplificada. Debe funcionar como ícono de app y como watermark discreto en reportes.
+Nada literal (lazo, sombrero). Un **monograma "AB" construido como marca de hacienda**: trazos geométricos de grosor uniforme y terminaciones rectas — la "A" sin travesaño (silueta de marca de ganado) combinada con una "B" reducida a dos semicírculos sobre el asta derecha. Sin serifas en el símbolo; opcionalmente inscripto en un contorno circular de sello para las piezas de identidad.
+
+Variantes obligatorias:
+- **Ícono de app:** símbolo en crema sobre fondo verde monte, legible a 16px.
+- **Watermark en reportes:** trazo marrón cuero al 6–8% de opacidad, esquina o centro según layout.
+- **Monocromo puro** para contextos de una tinta.
+
+### Forma de componentes: "como sello"
+
+La materia de la UI es papel y sello, no vidrio ni plástico:
+
+- **Esquinas casi rectas:** `rounded-sm` (2–4px) como máximo. Nada de píldoras ni cards muy redondeadas.
+- **Sin sombras difusas:** el relieve se logra con **bordes de 1px** en marrón translúcido y contraste de fondos, no con `shadow-lg`. A lo sumo una sombra mínima y dura para elementos flotantes (modales, menús).
+- Densidad cómoda pero no aireada al extremo: la app es una herramienta de uso diario.
+
+### Iconografía
+
+- **Heroicons**: outline (24px) para UI general, solid mini (20px) en contextos densos (tablas, badges). No mezclar con otros sets.
+- Color por defecto: marrón cuero, igual que el texto. Íconos decorativos siempre con `aria-hidden`.
+
+### Navegación
+
+- **Móvil:** bottom nav fija con los 4–5 módulos principales; la acción primaria de cada módulo como botón prominente al alcance del pulgar. Header mínimo (título + acción contextual).
+- **Desktop (`lg:`):** la bottom nav se convierte en sidebar izquierda; el contenido gana columnas, no otra estructura.
+
+### Estados de carga y movimiento
+
+- **Skeletons, no spinners**, para toda carga de contenido: bloques en tonos crema/marrón muy suaves que replican el layout final. Spinner solo para acciones puntuales de botón.
+- Transiciones breves y discretas (150–200ms); el movimiento no es parte de la personalidad — la app debe sentirse rápida.
+- Respetar `prefers-reduced-motion`.
+
+### Accesibilidad (regla general)
+
+La accesibilidad es un requisito de diseño, UX y desarrollo en toda la app, no una pasada final:
+
+- Contraste **WCAG AA mínimo**: 4.5:1 para texto normal, 3:1 para texto grande y elementos de UI. Todo color nuevo se verifica contra su fondo antes de usarse.
+- Targets táctiles de **44px mínimo** (coherente con mobile first).
+- Foco visible en todo elemento interactivo; formularios siempre con `label` asociado.
+- Nunca comunicar estado solo con color (acompañar con texto o ícono).
+- HTML semántico y atributos ARIA donde Livewire genere UI dinámica (live regions para feedback de Amparo).
+
+### Regionalización
+
+Locale **es-AR**: voseo en toda la interfaz (coherente con la voz de Amparo), fechas `dd/mm/aaaa`, números `1.234,56`, moneda ARS cuando aplique.
 
 ### Aplicación por módulo
 
-Cada módulo/sección puede tener **su propio acento de color dentro de la misma paleta tierra**, pero comparte tipografía y textura de fondo con el resto: una sola "casa" con varios cuartos. Al crear un módulo nuevo, elegir su acento entre los tonos tierra existentes (o una variante cercana), nunca fuera de la familia cromática.
+Cada módulo/sección tiene **su propio acento de color dentro de la misma paleta tierra**, pero comparte tipografía y fondo con el resto: una sola "casa" con varios cuartos.
+
+**Al crear un módulo nuevo, preguntar siempre al usuario qué acento le asigna**, proponiendo 2–3 opciones de la familia tierra (o variantes cercanas — nunca fuera de la familia cromática, nunca azules), verificando contraste AA de cada opción. Registrar la decisión en esta tabla:
+
+| Módulo | Acento | Referencia |
+|---|---|---|
+| _(sin módulos aún)_ | — | — |
