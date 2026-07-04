@@ -86,11 +86,12 @@ new #[Title('Registrarme')] class extends Component
             El registro está cerrado por ahora.
         </p>
     @else
-        <form wire:submit="register" class="space-y-4">
+        <form wire:submit="register" method="post" class="space-y-4">
             <div class="space-y-1">
                 <label for="name" class="text-sm font-medium">Tu nombre</label>
                 <input
                     id="name"
+                    name="name"
                     type="text"
                     wire:model="name"
                     autocomplete="name"
@@ -103,6 +104,7 @@ new #[Title('Registrarme')] class extends Component
                 <label for="username" class="text-sm font-medium">Usuario</label>
                 <input
                     id="username"
+                    name="username"
                     type="text"
                     wire:model="username"
                     autocomplete="username"
@@ -116,6 +118,7 @@ new #[Title('Registrarme')] class extends Component
                 <label for="password" class="text-sm font-medium">Contraseña</label>
                 <input
                     id="password"
+                    name="password"
                     type="password"
                     wire:model="password"
                     autocomplete="new-password"
@@ -128,6 +131,7 @@ new #[Title('Registrarme')] class extends Component
                 <label for="password_confirmation" class="text-sm font-medium">Repetí la contraseña</label>
                 <input
                     id="password_confirmation"
+                    name="password_confirmation"
                     type="password"
                     wire:model="password_confirmation"
                     autocomplete="new-password"
