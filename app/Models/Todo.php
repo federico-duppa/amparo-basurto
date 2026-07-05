@@ -127,9 +127,9 @@ class Todo extends Model
      */
     public static function eisenhowerOrderSql(): string
     {
-        return 'case when urgent = 1 and important = 1 then 0'
-            .' when important = 1 then 1'
-            .' when urgent = 1 then 2 else 3 end';
+        return 'case when urgent and important then 0'
+            .' when important then 1'
+            .' when urgent then 2 else 3 end';
     }
 
     /**
