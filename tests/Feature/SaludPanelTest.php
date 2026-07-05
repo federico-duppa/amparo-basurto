@@ -247,6 +247,39 @@ class SaludPanelTest extends TestCase
             ->assertSee('No encontré nada con eso.');
     }
 
+    public function test_el_timeline_se_pagina_con_ver_mas(): void
+    {
+        $record = HealthRecord::factory()->for($this->user)->create();
+
+        foreach (range(1, 21) as $i) {
+            HealthEntry::factory()->for($record, 'record')->for($this->user)->create([
+                'title' => "Entrada número {$i}",
+                'occurred_on' => now()->subDays($i),
+            ]);
+        }
+
+        Livewire::test('salud.panel')
+            ->assertSee('Entrada número 1')
+            ->assertDontSee('Entrada número 21')
+            ->assertSee('Ver más entradas')
+            ->call('showMoreEntries')
+            ->assertSee('Entrada número 21')
+            ->assertDontSee('Ver más entradas');
+    }
+
+    public function test_la_ventana_del_timeline_vuelve_al_principio_al_filtrar(): void
+    {
+        HealthRecord::factory()->for($this->user)->create();
+
+        Livewire::test('salud.panel')
+            ->call('showMoreEntries')
+            ->call('filterByType', 'consulta')
+            ->assertSet('entriesLimit', 20)
+            ->call('showMoreEntries')
+            ->set('search', 'algo')
+            ->assertSet('entriesLimit', 20);
+    }
+
     public function test_el_duenio_puede_compartir_la_historia(): void
     {
         $record = HealthRecord::factory()->for($this->user)->create();

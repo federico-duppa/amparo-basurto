@@ -72,4 +72,44 @@ class HealthRecord extends Model
     {
         return $this->hasMany(HealthEntry::class);
     }
+
+    /**
+     * Vencimientos con fecha: próximo control, receta que caduca, estudio anual…
+     *
+     * @return HasMany<HealthReminder, $this>
+     */
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(HealthReminder::class);
+    }
+
+    /**
+     * Contactos médicos: médico de cabecera, especialistas, teléfonos.
+     *
+     * @return HasMany<HealthContact, $this>
+     */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(HealthContact::class);
+    }
+
+    /**
+     * El carnet de vacunas: cada aplicación con su dosis y fecha.
+     *
+     * @return HasMany<HealthVaccine, $this>
+     */
+    public function vaccines(): HasMany
+    {
+        return $this->hasMany(HealthVaccine::class);
+    }
+
+    /**
+     * Mediciones (peso, presión, glucemia…) para seguir su evolución.
+     *
+     * @return HasMany<HealthMeasurement, $this>
+     */
+    public function measurements(): HasMany
+    {
+        return $this->hasMany(HealthMeasurement::class);
+    }
 }

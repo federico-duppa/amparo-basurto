@@ -11,6 +11,9 @@ use Livewire\Component;
 
 new #[Title('Salud')] class extends Component
 {
+    /** Entradas del timeline visibles por página; "Ver más" agranda la ventana. */
+    private const ENTRIES_PAGE = 20;
+
     // Historia seleccionada (null hasta que exista alguna).
     public ?int $recordId = null;
 
@@ -53,6 +56,9 @@ new #[Title('Salud')] class extends Component
     public string $search = '';
     public string $filterType = '';
 
+    // Ventana visible del timeline.
+    public int $entriesLimit = self::ENTRIES_PAGE;
+
     public function mount(): void
     {
         $this->entryDate = now()->format('Y-m-d');
@@ -85,7 +91,7 @@ new #[Title('Salud')] class extends Component
         auth()->user()->accessibleHealthRecords()->findOrFail($id);
 
         $this->recordId = $id;
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit');
     }
 
     public function startEditingRecord(): void
@@ -125,7 +131,7 @@ new #[Title('Salud')] class extends Component
         $record->delete();
 
         $this->recordId = auth()->user()->accessibleHealthRecords()->min('health_records.id');
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit');
     }
 
     // --- Ficha médica ---------------------------------------------------------
@@ -294,6 +300,12 @@ new #[Title('Salud')] class extends Component
     public function filterByType(string $type): void
     {
         $this->filterType = $this->filterType === $type ? '' : $type;
+        $this->entriesLimit = self::ENTRIES_PAGE;
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->entriesLimit = self::ENTRIES_PAGE;
     }
 
     // --- Helpers ----------------------------------------------------------------
@@ -342,10 +354,32 @@ new #[Title('Salud')] class extends Component
 
     /**
      * Entradas del timeline, de la más reciente a la más vieja, filtradas
-     * por tipo y por búsqueda de texto si corresponde.
+     * por tipo y por búsqueda de texto si corresponde. Se muestran de a
+     * ENTRIES_PAGE; "Ver más" agranda la ventana.
      */
     #[Computed]
     public function entries(): Collection
+    {
+        return $this->entriesWindow->take($this->entriesLimit)->values();
+    }
+
+    #[Computed]
+    public function hasMoreEntries(): bool
+    {
+        return $this->entriesWindow->count() > $this->entriesLimit;
+    }
+
+    public function showMoreEntries(): void
+    {
+        $this->entriesLimit += self::ENTRIES_PAGE;
+    }
+
+    /**
+     * La ventana consultada en SQL: con limit+1 alcanza para armar la página
+     * y saber si hay más, sin cargar toda la historia en cada render.
+     */
+    #[Computed]
+    public function entriesWindow(): Collection
     {
         $record = $this->record;
 
@@ -362,6 +396,7 @@ new #[Title('Salud')] class extends Component
             })
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
+            ->limit($this->entriesLimit + 1)
             ->get();
     }
 
@@ -594,6 +629,18 @@ new #[Title('Salud')] class extends Component
             @endif
         </div>
 
+        {{-- Vencimientos y recordatorios --}}
+        <livewire:salud.vencimientos :record-id="$record->id" :key="'vencimientos-'.$record->id" />
+
+        {{-- Carnet de vacunas --}}
+        <livewire:salud.vacunas :record-id="$record->id" :key="'vacunas-'.$record->id" />
+
+        {{-- Mediciones --}}
+        <livewire:salud.mediciones :record-id="$record->id" :key="'mediciones-'.$record->id" />
+
+        {{-- Contactos médicos --}}
+        <livewire:salud.contactos :record-id="$record->id" :key="'contactos-'.$record->id" />
+
         {{-- Compartir (solo el dueño) --}}
         @if ($this->isOwner)
             <div class="space-y-3 rounded-sm border border-cuero/20 p-4">
@@ -793,6 +840,13 @@ new #[Title('Salud')] class extends Component
                         </li>
                     @endforeach
                 </ul>
+
+                @if ($this->hasMoreEntries)
+                    <button type="button" wire:click="showMoreEntries" wire:loading.attr="disabled"
+                        class="min-h-11 w-full rounded-sm border border-cuero/30 px-4 text-sm font-medium text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela disabled:opacity-60">
+                        Ver más entradas
+                    </button>
+                @endif
             @endif
         </div>
     @endif
