@@ -59,4 +59,26 @@ class TodoFactory extends Factory
             'repeat_interval' => $interval,
         ]);
     }
+
+    public function someday(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => Todo::STATUS_SOMEDAY,
+        ]);
+    }
+
+    public function waiting(?string $for = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'waiting' => true,
+            'waiting_for' => $for,
+        ]);
+    }
+
+    public function deferredUntil(string $date): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'deferred_until' => $date,
+        ]);
+    }
 }

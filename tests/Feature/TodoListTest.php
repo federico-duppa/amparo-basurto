@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Project;
+use App\Models\Subtask;
+use App\Models\Tag;
 use App\Models\Todo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -466,5 +468,469 @@ class TodoListTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
 
         Livewire::test('todo.todo-list')->call('filterProject', $ajeno->id);
+    }
+
+    // --- Notas ------------------------------------------------------------
+
+    public function test_puede_agregar_notas_a_una_tarea(): void
+    {
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Llamar al banco')
+            ->set('notes', '  Preguntar por la tarjeta nueva  ')
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $this->assertSame('Preguntar por la tarjeta nueva', $this->user->todos()->sole()->notes);
+    }
+
+    // --- Etiquetas --------------------------------------------------------
+
+    public function test_puede_etiquetar_una_tarea_y_reutiliza_la_etiqueta(): void
+    {
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Comprar')
+            ->call('toggleTag', 'casa')
+            ->call('addTagFromDraft') // vacío: no suma nada
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('tags', ['name' => 'casa', 'user_id' => $this->user->id]);
+        $this->assertSame(['casa'], $this->user->todos()->sole()->tags->pluck('name')->all());
+
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Otra')
+            ->call('toggleTag', 'casa')
+            ->call('add');
+
+        // La segunda tarea reusa la etiqueta, no crea otra.
+        $this->assertSame(1, $this->user->tags()->count());
+    }
+
+    public function test_al_quitar_la_ultima_tarea_de_una_etiqueta_la_etiqueta_desaparece(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create();
+        $tag = Tag::factory()->for($this->user)->create(['name' => 'suelta']);
+        $todo->tags()->attach($tag);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->assertSet('selectedTags', ['suelta'])
+            ->call('toggleTag', 'suelta')
+            ->call('saveEdit')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseCount('tags', 0);
+    }
+
+    public function test_puede_filtrar_por_etiqueta(): void
+    {
+        $tag = $this->user->tags()->create(['name' => 'calle']);
+        $conTag = Todo::factory()->for($this->user)->create(['title' => 'Tarea etiquetada']);
+        $conTag->tags()->attach($tag);
+        Todo::factory()->for($this->user)->create(['title' => 'Tarea suelta']);
+
+        Livewire::test('todo.todo-list')
+            ->call('filterTag', $tag->id)
+            ->assertSee('Tarea etiquetada')
+            ->assertDontSee('Tarea suelta');
+    }
+
+    public function test_no_ve_las_etiquetas_de_otros(): void
+    {
+        $ajeno = Tag::factory()->create(['name' => 'ajena-secreta']);
+        Todo::factory()->create()->tags()->attach($ajeno);
+
+        $this->get('/tareas')->assertDontSee('ajena-secreta');
+    }
+
+    // --- Posponer (tickler) ----------------------------------------------
+
+    public function test_posponer_saca_la_tarea_de_las_vistas(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create(['title' => 'Tarea pospuesta']);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->set('deferredUntil', today()->addWeek()->toDateString())
+            ->call('saveEdit')
+            ->assertHasNoErrors();
+
+        $this->get('/tareas')->assertDontSee('Tarea pospuesta');
+    }
+
+    public function test_las_pospuestas_se_pueden_mostrar_y_traer_de_vuelta(): void
+    {
+        $todo = Todo::factory()->for($this->user)
+            ->deferredUntil(today()->addWeek()->toDateString())
+            ->create(['title' => 'Escondida']);
+
+        Livewire::test('todo.todo-list')
+            ->assertDontSee('Escondida')
+            ->call('toggleDeferred')
+            ->assertSee('Escondida')
+            ->call('undefer', $todo->id);
+
+        $this->assertNull($todo->fresh()->deferred_until);
+    }
+
+    public function test_la_pospuesta_reaparece_cuando_llega_la_fecha(): void
+    {
+        Todo::factory()->for($this->user)
+            ->deferredUntil(today()->toDateString())
+            ->create(['title' => 'Ya toca']);
+
+        $this->get('/tareas')->assertSee('Ya toca');
+    }
+
+    // --- Algún día --------------------------------------------------------
+
+    public function test_algun_dia_sale_de_la_lista_y_vive_en_su_pestana(): void
+    {
+        Todo::factory()->for($this->user)->someday()->create(['title' => 'Aprender a soldar']);
+        Todo::factory()->for($this->user)->create(['title' => 'Tarea de ahora']);
+
+        $this->get('/tareas')
+            ->assertSee('Tarea de ahora')
+            ->assertDontSee('Aprender a soldar');
+
+        Livewire::test('todo.todo-list')
+            ->call('setView', 'algun_dia')
+            ->assertSee('Aprender a soldar')
+            ->assertDontSee('Tarea de ahora');
+    }
+
+    public function test_puede_mandar_a_algun_dia_y_traer_de_vuelta(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create();
+
+        Livewire::test('todo.todo-list')->call('toSomeday', $todo->id);
+        $this->assertTrue($todo->fresh()->isSomeday());
+
+        Livewire::test('todo.todo-list')->call('toActive', $todo->id);
+        $this->assertSame(Todo::STATUS_ACTIVE, $todo->fresh()->status);
+    }
+
+    // --- En espera --------------------------------------------------------
+
+    public function test_puede_marcar_una_tarea_en_espera(): void
+    {
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Que confirme Ana')
+            ->set('waiting', true)
+            ->set('waitingFor', 'Ana')
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $todo = $this->user->todos()->sole();
+        $this->assertTrue($todo->waiting);
+        $this->assertSame('Ana', $todo->waiting_for);
+    }
+
+    public function test_una_tarea_en_espera_no_aparece_en_hoy(): void
+    {
+        Todo::factory()->for($this->user)
+            ->waiting('Juan')
+            ->dueOn(today()->toDateString())
+            ->create(['title' => 'Bloqueada por Juan']);
+
+        Livewire::test('todo.todo-list')
+            ->call('setView', 'hoy')
+            ->assertDontSee('Bloqueada por Juan');
+
+        // Pero sigue en la Lista, con su marca.
+        $this->get('/tareas')
+            ->assertSee('Bloqueada por Juan')
+            ->assertSee('esperando a Juan');
+    }
+
+    // --- Subtareas --------------------------------------------------------
+
+    public function test_puede_agregar_completar_y_borrar_subtareas(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create();
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->set('newSubtask', 'Primer paso')
+            ->call('addSubtask')
+            ->assertHasNoErrors()
+            ->assertSet('newSubtask', '');
+
+        $subtask = $todo->subtasks()->sole();
+        $this->assertSame('Primer paso', $subtask->title);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->call('toggleSubtask', $subtask->id);
+        $this->assertNotNull($subtask->fresh()->completed_at);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->call('deleteSubtask', $subtask->id);
+        $this->assertModelMissing($subtask);
+    }
+
+    public function test_no_puede_tocar_subtareas_de_otra_tarea(): void
+    {
+        $propia = Todo::factory()->for($this->user)->create();
+        $otra = Todo::factory()->for($this->user)->create();
+        $subtaskAjena = Subtask::factory()->for($otra)->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $propia->id)
+            ->call('toggleSubtask', $subtaskAjena->id);
+    }
+
+    // --- Fechas en lenguaje natural --------------------------------------
+
+    public function test_deduce_la_fecha_del_texto_al_anotar(): void
+    {
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Comprar pan mañana')
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $todo = $this->user->todos()->sole();
+        $this->assertSame('Comprar pan', $todo->title);
+        $this->assertSame(today()->addDay()->toDateString(), $todo->due_date->toDateString());
+    }
+
+    public function test_no_pisa_la_fecha_si_la_puso_a_mano(): void
+    {
+        Livewire::test('todo.todo-list')
+            ->set('title', 'Comprar pan mañana')
+            ->set('dueDate', today()->addWeek()->toDateString())
+            ->call('add');
+
+        $todo = $this->user->todos()->sole();
+        $this->assertSame('Comprar pan mañana', $todo->title);
+        $this->assertSame(today()->addWeek()->toDateString(), $todo->due_date->toDateString());
+    }
+
+    // --- Orden manual -----------------------------------------------------
+
+    public function test_puede_reordenar_a_mano_dentro_del_cuadrante(): void
+    {
+        Todo::factory()->for($this->user)->create(['title' => 'Alfa']);
+        $beta = Todo::factory()->for($this->user)->create(['title' => 'Beta']);
+        Todo::factory()->for($this->user)->create(['title' => 'Gama']);
+
+        // Sin tocar nada, el orden es la más reciente arriba: Gama, Beta, Alfa.
+        $this->get('/tareas')->assertSeeInOrder(['Gama', 'Beta', 'Alfa']);
+
+        Livewire::test('todo.todo-list')->call('moveUp', $beta->id);
+
+        $this->get('/tareas')->assertSeeInOrder(['Beta', 'Gama', 'Alfa']);
+    }
+
+    public function test_el_orden_manual_no_cruza_de_cuadrante(): void
+    {
+        Todo::factory()->for($this->user)->important()->create(['title' => 'Importante arriba']);
+        $normal1 = Todo::factory()->for($this->user)->create(['title' => 'Normal vieja']);
+        Todo::factory()->for($this->user)->create(['title' => 'Normal nueva']);
+
+        // moveUp dos veces sobre la normal más vieja: sube dentro del cuadrante
+        // pero nunca por encima de la importante.
+        Livewire::test('todo.todo-list')
+            ->call('moveUp', $normal1->id)
+            ->call('moveUp', $normal1->id);
+
+        $this->get('/tareas')->assertSeeInOrder(['Importante arriba', 'Normal vieja', 'Normal nueva']);
+    }
+
+    public function test_no_puede_reordenar_tareas_ajenas(): void
+    {
+        $ajena = Todo::factory()->create();
+
+        // No explota ni la mueve: simplemente no hace nada.
+        Livewire::test('todo.todo-list')->call('moveUp', $ajena->id);
+
+        $this->assertSame(0, $ajena->fresh()->position);
+    }
+
+    // --- Búsqueda ---------------------------------------------------------
+
+    public function test_la_busqueda_filtra_por_titulo_y_por_notas(): void
+    {
+        Todo::factory()->for($this->user)->create(['title' => 'Comprar yerba']);
+        Todo::factory()->for($this->user)->create(['title' => 'Turno', 'notes' => 'llamar al dentista']);
+        Todo::factory()->for($this->user)->create(['title' => 'Otra cosa']);
+
+        Livewire::test('todo.todo-list')
+            ->set('search', 'dentista')
+            ->assertSee('Turno')
+            ->assertDontSee('Comprar yerba')
+            ->assertDontSee('Otra cosa');
+    }
+
+    // --- Paginación -------------------------------------------------------
+
+    public function test_la_lista_pagina_las_pendientes(): void
+    {
+        Todo::factory()->for($this->user)->count(30)->create();
+
+        $component = Livewire::test('todo.todo-list');
+
+        $this->assertSame(30, $component->instance()->todos->total());
+        $this->assertSame(25, $component->instance()->todos->count());
+        $this->assertTrue($component->instance()->todos->hasPages());
+    }
+
+    // --- Renombrar proyectos ---------------------------------------------
+
+    public function test_puede_renombrar_un_proyecto(): void
+    {
+        $project = Project::factory()->for($this->user)->create(['name' => 'Viejo nombre']);
+
+        Livewire::test('todo.todo-list')
+            ->call('startRenamingProject', $project->id)
+            ->set('renameProjectName', 'Nombre nuevo')
+            ->call('renameProject')
+            ->assertHasNoErrors();
+
+        $this->assertSame('Nombre nuevo', $project->fresh()->name);
+    }
+
+    public function test_renombrar_no_permite_un_nombre_repetido(): void
+    {
+        Project::factory()->for($this->user)->create(['name' => 'Ocupado']);
+        $project = Project::factory()->for($this->user)->create(['name' => 'Libre']);
+
+        Livewire::test('todo.todo-list')
+            ->call('startRenamingProject', $project->id)
+            ->set('renameProjectName', 'Ocupado')
+            ->call('renameProject')
+            ->assertHasErrors('renameProjectName');
+
+        $this->assertSame('Libre', $project->fresh()->name);
+    }
+
+    public function test_no_puede_renombrar_un_proyecto_ajeno(): void
+    {
+        $ajeno = Project::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('todo.todo-list')->call('startRenamingProject', $ajeno->id);
+    }
+
+    // --- Proyectos compartidos -------------------------------------------
+
+    public function test_el_dueno_puede_compartir_un_proyecto_por_usuario(): void
+    {
+        $otra = User::factory()->create(['username' => 'pepe', 'name' => 'Pepe']);
+        $project = Project::factory()->for($this->user)->create();
+
+        Livewire::test('todo.todo-list')
+            ->call('filterProject', $project->id)
+            ->set('shareUsername', 'pepe')
+            ->call('share')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($project->members()->whereKey($otra->id)->exists());
+    }
+
+    public function test_un_miembro_ve_y_puede_tachar_las_tareas_del_proyecto_compartido(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->for($owner)->create(['name' => 'Compras de la casa']);
+        $tarea = Todo::factory()->for($owner)->for($project)->create(['title' => 'Comprar leche']);
+        $project->members()->attach($this->user->id);
+
+        Livewire::test('todo.todo-list')
+            ->call('filterProject', $project->id)
+            ->assertSee('Comprar leche')
+            ->call('toggle', $tarea->id);
+
+        $this->assertNotNull($tarea->fresh()->completed_at);
+    }
+
+    public function test_un_miembro_no_puede_editar_ni_eliminar_tareas_ajenas(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->for($owner)->create();
+        $tarea = Todo::factory()->for($owner)->for($project)->create();
+        $project->members()->attach($this->user->id);
+
+        try {
+            Livewire::test('todo.todo-list')->call('startEditing', $tarea->id);
+            $this->fail('Un miembro no debería poder editar una tarea ajena.');
+        } catch (ModelNotFoundException) {
+            // esperado
+        }
+
+        try {
+            Livewire::test('todo.todo-list')->call('delete', $tarea->id);
+            $this->fail('Un miembro no debería poder eliminar una tarea ajena.');
+        } catch (ModelNotFoundException) {
+            // esperado
+        }
+
+        $this->assertModelExists($tarea);
+    }
+
+    public function test_solo_el_dueno_renombra_elimina_o_comparte_el_proyecto(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->for($owner)->create();
+        $project->members()->attach($this->user->id);
+
+        // El miembro lo ve (accesible) pero no puede administrarlo.
+        Livewire::test('todo.todo-list')->call('filterProject', $project->id)->assertHasNoErrors();
+
+        foreach (['startRenamingProject', 'deleteProject'] as $accion) {
+            try {
+                Livewire::test('todo.todo-list')->call($accion, $project->id);
+                $this->fail("Un miembro no debería poder $accion.");
+            } catch (ModelNotFoundException) {
+                // esperado
+            }
+        }
+
+        try {
+            Livewire::test('todo.todo-list')
+                ->call('filterProject', $project->id)
+                ->set('shareUsername', 'alguien')
+                ->call('share');
+            $this->fail('Un miembro no debería poder compartir el proyecto.');
+        } catch (ModelNotFoundException) {
+            // esperado
+        }
+    }
+
+    public function test_el_dueno_puede_dejar_de_compartir(): void
+    {
+        $otra = User::factory()->create();
+        $project = Project::factory()->for($this->user)->create();
+        $project->members()->attach($otra->id);
+
+        Livewire::test('todo.todo-list')
+            ->call('filterProject', $project->id)
+            ->call('unshare', $otra->id);
+
+        $this->assertFalse($project->members()->whereKey($otra->id)->exists());
+    }
+
+    public function test_completar_una_recurrente_compartida_deja_la_ocurrencia_al_dueno(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->for($owner)->create();
+        $tarea = Todo::factory()->for($owner)->for($project)
+            ->dueOn(today()->toDateString())
+            ->repeats('semanal')
+            ->create(['title' => 'Regar el patio']);
+        $project->members()->attach($this->user->id);
+
+        // La tacha un miembro, no el dueño.
+        Livewire::test('todo.todo-list')
+            ->call('filterProject', $project->id)
+            ->call('toggle', $tarea->id);
+
+        $proxima = $owner->todos()->whereNull('completed_at')->where('title', 'Regar el patio')->sole();
+
+        $this->assertSame($owner->id, $proxima->user_id);
+        $this->assertSame($project->id, $proxima->project_id);
     }
 }
