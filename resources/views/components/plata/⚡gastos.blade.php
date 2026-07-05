@@ -23,6 +23,11 @@ new #[Title('Plata')] class extends Component
 
     public string $envelopeId = '';
 
+    // Si el pago, además de descontar el saldo del sobre, cumple parte de su
+    // objetivo: le baja la vara por el mismo monto. Solo aplica a sobres de
+    // gasto con objetivo.
+    public bool $reducesTarget = false;
+
     // Edición de un gasto ya cargado (null = estamos agregando uno nuevo).
     public ?int $editingId = null;
 
@@ -40,7 +45,17 @@ new #[Title('Plata')] class extends Component
             'currency' => ['required', Rule::in(Envelope::CURRENCIES)],
             'spentOn' => ['required', 'date', 'before_or_equal:today'],
             'envelopeId' => ['nullable', 'integer'],
+            'reducesTarget' => ['boolean'],
         ];
+    }
+
+    /**
+     * Al cambiar de sobre, el "cumple el objetivo" arranca de cero: solo tiene
+     * sentido para el sobre elegido, y no siempre está disponible.
+     */
+    public function updatedEnvelopeId(): void
+    {
+        $this->reducesTarget = false;
     }
 
     protected function messages(): array
@@ -81,9 +96,10 @@ new #[Title('Plata')] class extends Component
             'spent_on' => $date->toDateString(),
             'rate_ars' => $rate,
             'rate_source' => $rate === null ? null : 'blue',
+            'reduces_target' => $this->cumpleObjetivo($envelope),
         ]);
 
-        $this->reset('description', 'amount', 'envelopeId');
+        $this->reset('description', 'amount', 'envelopeId', 'reducesTarget');
     }
 
     public function startEditing(int $id): void
@@ -97,6 +113,7 @@ new #[Title('Plata')] class extends Component
         $this->currency = $expense->currency;
         $this->spentOn = $expense->spent_on->format('Y-m-d');
         $this->envelopeId = $expense->envelope_id === null ? '' : (string) $expense->envelope_id;
+        $this->reducesTarget = $expense->reduces_target;
         $this->resetValidation();
     }
 
@@ -124,6 +141,7 @@ new #[Title('Plata')] class extends Component
             'spent_on' => $date->toDateString(),
             'rate_ars' => $rate,
             'rate_source' => $rate === null ? null : 'blue',
+            'reduces_target' => $this->cumpleObjetivo($envelope),
         ]);
 
         $this->cancelEdit();
@@ -131,9 +149,34 @@ new #[Title('Plata')] class extends Component
 
     public function cancelEdit(): void
     {
-        $this->reset('editingId', 'description', 'amount', 'envelopeId');
+        $this->reset('editingId', 'description', 'amount', 'envelopeId', 'reducesTarget');
         $this->spentOn = now()->format('Y-m-d');
         $this->resetValidation();
+    }
+
+    /**
+     * ¿El pago cumple parte del objetivo del sobre? Solo puede pasar si hay un
+     * sobre de gasto con objetivo y el usuario lo marcó.
+     */
+    private function cumpleObjetivo(?Envelope $envelope): bool
+    {
+        return $this->reducesTarget
+            && $envelope !== null
+            && $envelope->target_amount !== null;
+    }
+
+    /**
+     * El sobre elegido en el formulario (o null si es suelto). Sirve para saber
+     * si ofrecer el "cumple el objetivo".
+     */
+    #[Computed]
+    public function selectedEnvelope(): ?Envelope
+    {
+        if ($this->envelopeId === '') {
+            return null;
+        }
+
+        return $this->gastoEnvelopes->firstWhere('id', (int) $this->envelopeId);
     }
 
     /**
@@ -328,7 +371,7 @@ new #[Title('Plata')] class extends Component
                 <label for="envelopeId" class="mb-1 block text-sm text-cuero/70">Descontar de un sobre (opcional)</label>
                 <select
                     id="envelopeId"
-                    wire:model="envelopeId"
+                    wire:model.live="envelopeId"
                     class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
                 >
                     <option value="">Suelto, sin sobre</option>
@@ -339,6 +382,19 @@ new #[Title('Plata')] class extends Component
                 @error('envelopeId')
                     <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p>
                 @enderror
+
+                @if ($this->selectedEnvelope && $this->selectedEnvelope->target_amount !== null)
+                    <label class="mt-2 flex min-h-11 cursor-pointer items-start gap-3">
+                        <input
+                            type="checkbox"
+                            wire:model="reducesTarget"
+                            class="mt-0.5 size-5 rounded-sm border-cuero/50 text-oliva focus:ring-oliva/40"
+                        >
+                        <span class="text-sm text-cuero/80">
+                            Este pago cumple parte del objetivo: le bajo la vara al sobre por el mismo monto, no solo el saldo.
+                        </span>
+                    </label>
+                @endif
             </div>
         @endif
 

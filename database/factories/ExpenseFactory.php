@@ -28,6 +28,7 @@ class ExpenseFactory extends Factory
             'spent_on' => fake()->dateTimeBetween('-3 months', 'now')->format('Y-m-d'),
             'rate_ars' => null,
             'rate_source' => null,
+            'reduces_target' => false,
         ];
     }
 

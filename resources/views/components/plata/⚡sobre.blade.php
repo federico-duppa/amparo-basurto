@@ -401,6 +401,8 @@ new #[Title('Sobre')] class extends Component
                 Objetivo: {{ $this->plata($this->envelope->currentTarget(), $this->envelope->currency) }}
                 @if ($this->envelope->indexed && $this->envelope->target_month !== null)
                     (eran {{ $this->plata($this->envelope->target_amount) }} en {{ $this->envelope->target_month->format('m/Y') }}; la vara sube con el IPC)
+                @elseif ($this->envelope->targetReducedByPayments() > 0)
+                    (eran {{ $this->plata($this->envelope->target_amount, $this->envelope->currency) }}; lo fueron bajando los pagos que cumpliste)
                 @endif
             </p>
 
