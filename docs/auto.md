@@ -1,10 +1,14 @@
 # Auto (`/auto`)
 
-Mantenimiento del vehículo: qué le toca al auto y cuándo, historial de lo que se le hizo, cargas de combustible y cuánto va costando todo. Es además el primer módulo **compartido**: un auto tiene un dueño y puede compartirse con otras personas.
+Mantenimiento del vehículo: qué le toca y cuándo, historial de lo que se le hizo, cargas de combustible y cuánto va costando todo. Es además el primer módulo **compartido**: un vehículo tiene un dueño y puede compartirse con otras personas.
+
+## El vehículo: auto o moto
+
+Un vehículo puede ser un **auto** o una **moto**. El tipo se elige al darlo de alta (y se puede corregir editándolo) y es una etiqueta liviana: cambia la voz (auto/moto), se muestra como distintivo junto al nombre, y **define qué mantenimientos se precargan** (ver abajo). El resto del seguimiento —kilometraje, cargas, documentación, gastos, compartir— es idéntico para los dos.
 
 ## El auto
 
-- **Alta:** marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. Sin ningún auto accesible el formulario aparece directo; con autos ya cargados, el botón **"+ Otro auto"** (junto al selector) abre el mismo formulario para dar de alta otro auto propio. El auto recién creado queda seleccionado.
+- **Alta:** tipo (auto o moto), marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. Sin ningún vehículo accesible el formulario aparece directo; con vehículos ya cargados, el botón **"+ Otro vehículo"** (junto al selector) abre el mismo formulario para dar de alta otro propio. El vehículo recién creado queda seleccionado.
 - **Varios autos:** con más de un auto accesible (por ejemplo, uno propio y uno compartido) aparece un selector, que marca los ajenos con "compartido". Al entrar al módulo se muestra el auto más antiguo de los accesibles.
 - **Kilometraje actual:** es la referencia contra la que se calculan los vencimientos. Se puede corregir a mano en cualquier momento (incluso hacia abajo), y además **sube solo**: al registrar un mantenimiento o una carga de combustible con un kilometraje mayor, el del auto se actualiza (nunca baja por esta vía).
 - **Editar** los datos del auto y **eliminarlo** son acciones de dueño. Eliminar el auto borra también todo su historial (mantenimientos, registros y cargas) y requiere confirmación.
@@ -13,7 +17,7 @@ Mantenimiento del vehículo: qué le toca al auto y cuándo, historial de lo que
 
 Cada auto tiene una lista de ítems de mantenimiento ("Cambio de aceite", "Correa de distribución"…), cada uno con un intervalo en **km**, en **meses**, ambos o ninguno.
 
-- **Presets:** al crear un auto se precargan tres sugerencias: cambio de aceite (10.000 km / 12 meses), bujías (40.000 km) y correa de distribución (60.000 km / 60 meses). Son ítems comunes que se pueden borrar como cualquier otro.
+- **Presets según el tipo:** al crear el vehículo se precargan tres sugerencias acordes. Un **auto** arranca con cambio de aceite (10.000 km / 12 meses), bujías (40.000 km) y correa de distribución (60.000 km / 60 meses); una **moto**, con cambio de aceite (5.000 km / 12 meses), kit de arrastre (20.000 km) y bujía (10.000 km). Son ítems comunes que se pueden borrar o editar como cualquier otro.
 - **Editar un ítem:** el lápiz de cada ítem abre un formulario en línea para corregir el nombre y los intervalos (km, meses, ambos o ninguno; mismas reglas que al crearlo). Cambiar los intervalos recalcula el próximo vencimiento; el historial de realizaciones no se toca. **Eliminar un ítem borra también su historial de realizaciones** (con confirmación previa que lo avisa).
 - **Estado calculado:** contra el kilometraje actual y la fecha de hoy, cada ítem está en uno de cuatro estados:
   - **Sin registrar** — nunca se anotó una realización; no hay desde dónde calcular.

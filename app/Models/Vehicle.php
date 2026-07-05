@@ -17,7 +17,31 @@ class Vehicle extends Model
     /** Días mínimos entre la primera y la última lectura para estimar el ritmo de uso. */
     private const MIN_USAGE_DAYS = 14;
 
+    /** Tipos de vehículo, con su etiqueta para la interfaz. */
+    public const TIPOS = [
+        'auto' => 'Auto',
+        'moto' => 'Moto',
+    ];
+
+    /**
+     * Mantenimientos que se precargan al dar de alta el vehículo, según su tipo.
+     * Son sugerencias comunes: el usuario las edita o borra como cualquier otra.
+     */
+    public const PRESETS = [
+        'auto' => [
+            ['name' => 'Cambio de aceite', 'interval_km' => 10000, 'interval_months' => 12],
+            ['name' => 'Cambio de bujías', 'interval_km' => 40000, 'interval_months' => null],
+            ['name' => 'Correa de distribución', 'interval_km' => 60000, 'interval_months' => 60],
+        ],
+        'moto' => [
+            ['name' => 'Cambio de aceite', 'interval_km' => 5000, 'interval_months' => 12],
+            ['name' => 'Kit de arrastre', 'interval_km' => 20000, 'interval_months' => null],
+            ['name' => 'Cambio de bujía', 'interval_km' => 10000, 'interval_months' => null],
+        ],
+    ];
+
     protected $fillable = [
+        'tipo',
         'marca',
         'modelo',
         'patente',
@@ -45,6 +69,29 @@ class Vehicle extends Model
     public function nombre(): string
     {
         return trim($this->marca.' '.$this->modelo);
+    }
+
+    /** Si el vehículo es una moto (el otro tipo es "auto"). */
+    public function esMoto(): bool
+    {
+        return $this->tipo === 'moto';
+    }
+
+    /** El sustantivo del vehículo para la voz de Amparo: "auto" o "moto". */
+    public function sustantivo(): string
+    {
+        return $this->esMoto() ? 'moto' : 'auto';
+    }
+
+    /**
+     * Mantenimientos sugeridos para este tipo de vehículo, con un fallback a los
+     * del auto si el tipo no tuviera presets propios.
+     *
+     * @return array<int, array{name: string, interval_km: ?int, interval_months: ?int}>
+     */
+    public function presets(): array
+    {
+        return self::PRESETS[$this->tipo] ?? self::PRESETS['auto'];
     }
 
     /**

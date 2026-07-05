@@ -1,19 +1,29 @@
 # Salud (`/salud`)
 
-Historias clínicas de personas: la propia, la de un familiar o las de pacientes, si quien usa la app trabaja en el rubro. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
+Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro) o la de una mascota. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
 
 Como en la ficha, **todas las secciones estructuradas son del día a día**: cualquier persona con acceso a la historia (dueño o compartida) las opera completas. Eliminar la historia borra también todo lo anotado en ellas.
 
 ## La historia y su titular
 
-- El **titular** es una persona, no un usuario de la app: puede ser uno mismo, un familiar o un paciente sin cuenta. La historia guarda su nombre y, opcionalmente, su fecha de nacimiento (si está, se muestra también la edad calculada).
-- **Alta:** solo pide de quién es la historia (nombre) y la fecha de nacimiento opcional; el resto de la ficha se completa después. Se pueden crear **varias historias** desde la interfaz ("+ Nueva historia").
+El titular de una historia puede ser de tres tipos, que se elige al darla de alta (y se puede corregir editándola). Cambia la voz, cómo se rotula el nombre y **qué campos trae la ficha**; el timeline, los vencimientos, el carnet de vacunas, las mediciones y los contactos son iguales para los tres:
+
+- **Persona** (default): uno mismo, un familiar o un paciente sin cuenta.
+- **Mascota:** para llevarle la salud a un animal (ver [la ficha](#ficha), que cambia especie/raza y veterinaria).
+- **Documento:** una ficha de paciente sin una persona detrás — sirve como plantilla o registro suelto. No tiene fecha de nacimiento ni edad.
+
+- El **titular** es una persona (o mascota, o documento), no un usuario de la app. La historia guarda su nombre y, cuando aplica, su fecha de nacimiento (si está, se muestra también la edad calculada; un documento no la lleva).
+- **Alta:** pide el tipo, de quién es la historia (nombre) y —salvo en un documento— la fecha de nacimiento opcional; el resto de la ficha se completa después. Se pueden crear **varias historias** desde la interfaz ("+ Nueva historia").
 - **Varias historias:** con más de una historia accesible aparece un selector, que marca las ajenas con "compartida". Al entrar al módulo se muestra la historia más antigua de las accesibles.
-- **Editar al titular** (nombre y nacimiento) y **eliminar la historia** son acciones de dueño. Eliminarla borra también todas sus entradas y requiere confirmación.
+- **Editar al titular** (tipo, nombre y nacimiento) y **eliminar la historia** son acciones de dueño. Eliminarla borra también todas sus entradas y requiere confirmación.
 
 ## Ficha
 
-Lo que dirías en una guardia sin pensar: **grupo sanguíneo**, **obra social/prepaga** (nombre y afiliado en texto libre), **alergias**, **condiciones crónicas** y **medicación actual** (droga y dosis, texto libre). Todos los campos son opcionales.
+Lo que dirías en una guardia sin pensar. Los campos que trae dependen del tipo de historia; todos son opcionales:
+
+- **Persona:** **grupo sanguíneo**, **obra social/prepaga** (nombre y afiliado en texto libre), **alergias**, **condiciones crónicas** y **medicación actual** (droga y dosis, texto libre).
+- **Mascota:** **especie** y **raza**, **veterinaria** (en el lugar de la obra social), y las mismas **alergias**, **condiciones** y **medicación**. No trae grupo sanguíneo.
+- **Documento:** ficha neutra con solo **alergias**, **condiciones** y **medicación**.
 
 - La ficha se muestra siempre arriba, antes del timeline; los campos vacíos figuran con "—".
 - Las **alergias se resaltan** visualmente (fondo ocre) porque son el dato crítico de la ficha.
