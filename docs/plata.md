@@ -63,6 +63,7 @@ En ambos casos el gasto cuenta igual en los reportes. Las categorías son texto 
 
 - **Gastos:** desde la lista, el lápiz de cada gasto lo carga en el formulario de arriba para corregir cualquier campo (descripción, categoría, monto, moneda, fecha, sobre imputado). Al guardar se recalcula la cotización congelada igual que al anotarlo: si queda en dólares, se vuelve a tomar el snapshot blue de la fecha; si pasa a pesos, se borra. Un cartel avisa que estás editando y se puede cancelar.
 - **Movimientos** (aportes y retiros) se editan en línea desde la historia del sobre: monto, fecha y nota. La edición nunca puede dejar el saldo en rojo (subir un retiro más allá de lo disponible, o bajar un aporte por debajo de lo ya gastado/retirado, se rechaza con un aviso). Las **transferencias no se editan**: son un par vinculado con conversión, así que se eliminan enteras y se rehacen.
+- **Objetivo del sobre:** se edita en línea desde la ficha del sobre. En sobres **nominales** se puede cambiar, agregar (si no tenía) o sacar (dejándolo en blanco, ya que es opcional). En sobres **indexados** el objetivo es obligatorio (no se puede vaciar) y el monto se ingresa "en pesos de hoy": al reescribirlo, el mes base se re-ancla al mes actual, así la vara vuelve a arrancar desde ahí. El objetivo emergente por los pagos que lo cumplen (sobres de gasto) se sigue reconstruyendo desde el `target_amount` editado.
 
 ## Eliminaciones
 

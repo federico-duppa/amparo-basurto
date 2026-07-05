@@ -345,6 +345,97 @@ class PlataSobreTest extends TestCase
             ->call('startEditingMovement', $movimientoAjeno->id);
     }
 
+    public function test_puede_editar_el_objetivo_de_un_sobre(): void
+    {
+        $sobre = $this->sobre(['target_amount' => 100000]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->assertSet('editingTarget', true)
+            ->assertSet('targetAmountInput', '100000')
+            ->set('targetAmountInput', '250000')
+            ->call('updateTarget')
+            ->assertHasNoErrors()
+            ->assertSet('editingTarget', false);
+
+        $this->assertSame('250000.00', $sobre->fresh()->target_amount);
+    }
+
+    public function test_puede_ponerle_un_objetivo_a_un_sobre_que_no_tenia(): void
+    {
+        $sobre = $this->sobre(['target_amount' => null]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->assertSet('targetAmountInput', '')
+            ->set('targetAmountInput', '80000')
+            ->call('updateTarget')
+            ->assertHasNoErrors();
+
+        $this->assertSame('80000.00', $sobre->fresh()->target_amount);
+    }
+
+    public function test_puede_sacarle_el_objetivo_a_un_sobre_nominal(): void
+    {
+        $sobre = $this->sobre(['target_amount' => 100000]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->set('targetAmountInput', '')
+            ->call('updateTarget')
+            ->assertHasNoErrors();
+
+        $this->assertNull($sobre->fresh()->target_amount);
+    }
+
+    public function test_no_deja_un_objetivo_invalido(): void
+    {
+        $sobre = $this->sobre(['target_amount' => 100000]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->set('targetAmountInput', '-5')
+            ->call('updateTarget')
+            ->assertHasErrors(['targetAmountInput']);
+
+        $this->assertSame('100000.00', $sobre->fresh()->target_amount);
+    }
+
+    public function test_no_puede_dejar_sin_objetivo_un_sobre_indexado(): void
+    {
+        $sobre = Envelope::factory()->indexado()->for($this->user)->create([
+            'target_amount' => 100000,
+            'target_month' => now()->subMonths(3)->startOfMonth()->toDateString(),
+        ]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->set('targetAmountInput', '')
+            ->call('updateTarget')
+            ->assertHasErrors(['targetAmountInput']);
+
+        $this->assertSame('100000.00', $sobre->fresh()->target_amount);
+    }
+
+    public function test_editar_el_objetivo_de_un_sobre_indexado_reancla_el_mes_base(): void
+    {
+        $sobre = Envelope::factory()->indexado()->for($this->user)->create([
+            'target_amount' => 100000,
+            'target_month' => now()->subMonths(3)->startOfMonth()->toDateString(),
+        ]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingTarget')
+            ->set('targetAmountInput', '150000')
+            ->call('updateTarget')
+            ->assertHasNoErrors();
+
+        $sobre->refresh();
+        $this->assertSame('150000.00', $sobre->target_amount);
+        // El monto es "en pesos de hoy": el mes base vuelve a arrancar desde este mes.
+        $this->assertSame(now()->startOfMonth()->toDateString(), $sobre->target_month->toDateString());
+    }
+
     public function test_al_eliminar_un_sobre_los_gastos_quedan_sueltos(): void
     {
         $sobre = Envelope::factory()->gasto()->for($this->user)->create();
