@@ -436,6 +436,51 @@ class PlataSobreTest extends TestCase
         $this->assertSame(now()->startOfMonth()->toDateString(), $sobre->target_month->toDateString());
     }
 
+    public function test_la_historia_se_muestra_de_a_20_y_se_puede_ver_mas(): void
+    {
+        $sobre = $this->sobre();
+
+        // 21 aportes en días distintos: el más viejo queda para la segunda página.
+        foreach (range(1, 21) as $i) {
+            EnvelopeMovement::factory()->for($this->user)->for($sobre)->create([
+                'amount' => 1000,
+                'moved_on' => now()->subDays(40 - $i)->format('Y-m-d'),
+                'note' => $i === 1 ? 'El aporte fundacional' : null,
+            ]);
+        }
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->assertSee('Ver más historia')
+            ->assertDontSee('El aporte fundacional')
+            ->call('showMoreTimeline')
+            ->assertSee('El aporte fundacional')
+            ->assertDontSee('Ver más historia');
+    }
+
+    public function test_la_primera_pagina_de_la_historia_intercala_los_gastos_recientes(): void
+    {
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create(['currency' => 'ARS', 'target_amount' => null]);
+
+        // 20 movimientos viejos llenarían la página solos…
+        foreach (range(1, 20) as $i) {
+            EnvelopeMovement::factory()->for($this->user)->for($sobre)->create([
+                'amount' => 1000,
+                'moved_on' => now()->subDays(40 - $i)->format('Y-m-d'),
+            ]);
+        }
+
+        // …pero un gasto de hoy es lo más reciente y entra igual.
+        Expense::factory()->for($this->user)->create([
+            'envelope_id' => $sobre->id,
+            'description' => 'Cuota del seguro',
+            'spent_on' => now()->format('Y-m-d'),
+        ]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->assertSee('Cuota del seguro')
+            ->assertSee('Ver más historia');
+    }
+
     public function test_al_eliminar_un_sobre_los_gastos_quedan_sueltos(): void
     {
         $sobre = Envelope::factory()->gasto()->for($this->user)->create();

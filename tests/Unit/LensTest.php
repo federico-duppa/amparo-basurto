@@ -59,6 +59,26 @@ class LensTest extends TestCase
         $this->assertEqualsWithDelta(5.0, $lens->value(10, 'USD', now()->subMonth(), frozenRate: 500), 0.001);
     }
 
+    public function test_sin_snapshot_usa_la_serie_blue_del_dia_de_la_transaccion(): void
+    {
+        ExchangeRate::create(['rate_type' => 'blue', 'quoted_on' => now()->subMonth()->toDateString(), 'sell' => 800]);
+
+        $lens = new Lens('ars', 'nominal', now());
+
+        $this->assertEqualsWithDelta(8000.0, $lens->value(10, 'USD', now()->subMonth()), 0.001);
+    }
+
+    public function test_con_la_serie_lejana_y_sin_api_cae_al_ultimo_valor_conocido(): void
+    {
+        // El dato más cercano quedó a más de una semana y la API no responde
+        // (Http::fake del setUp): fallback al último valor conocido.
+        ExchangeRate::create(['rate_type' => 'blue', 'quoted_on' => now()->subMonths(3)->toDateString(), 'sell' => 900]);
+
+        $lens = new Lens('ars', 'nominal', now());
+
+        $this->assertEqualsWithDelta(9000.0, $lens->value(10, 'USD', now()->subMonth()), 0.001);
+    }
+
     public function test_sin_cotizacion_imprescindible_devuelve_null(): void
     {
         $lens = new Lens('ars', 'nominal', now());
