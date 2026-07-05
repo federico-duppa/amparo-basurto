@@ -207,7 +207,7 @@ new #[Title('Reportes')] class extends Component
                 <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
                     @foreach ($this->byMonth as $mes => $total)
                         <li wire:key="mes-{{ $mes }}" class="flex items-baseline justify-between gap-2 py-2.5">
-                            <span class="text-sm">{{ \Illuminate\Support\Carbon::createFromFormat('Y-m', $mes)->format('m/Y') }}</span>
+                            <span class="text-sm">{{ \Illuminate\Support\Carbon::createFromFormat('!Y-m', $mes)->format('m/Y') }}</span>
                             <span class="text-sm font-medium">{{ $this->plata($total, $this->lens->currency()) }}</span>
                         </li>
                     @endforeach

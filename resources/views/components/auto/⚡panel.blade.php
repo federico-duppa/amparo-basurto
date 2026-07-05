@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
@@ -16,10 +17,14 @@ new #[Title('Auto')] class extends Component
     /** Realizaciones visibles por página en el historial de un ítem. */
     private const HISTORY_PAGE = 10;
 
+    /** Períodos visibles por página en el desglose de gastos. */
+    private const SPEND_PAGE = 12;
+
     // Auto seleccionado (null hasta que exista alguno).
     public ?int $vehicleId = null;
 
-    // Alta de auto.
+    // Alta de auto (con autos ya cargados el formulario se abre a pedido).
+    public bool $addingVehicle = false;
     public string $newMarca = '';
     public string $newModelo = '';
     public string $newPatente = '';
@@ -99,6 +104,10 @@ new #[Title('Auto')] class extends Component
     // Historial de vigencias anteriores desplegado.
     public ?int $docHistoryId = null;
 
+    // Desglose de gastos por período: 'mes' o 'anio'.
+    public string $spendPeriod = 'mes';
+    public int $spendLimit = self::SPEND_PAGE;
+
     public function mount(): void
     {
         $this->logDate = now()->format('Y-m-d');
@@ -107,6 +116,19 @@ new #[Title('Auto')] class extends Component
     }
 
     // --- Auto -------------------------------------------------------------
+
+    public function startAddingVehicle(): void
+    {
+        $this->reset('newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->addingVehicle = true;
+        $this->resetValidation();
+    }
+
+    public function cancelAddVehicle(): void
+    {
+        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->resetValidation();
+    }
 
     public function createVehicle(): void
     {
@@ -139,8 +161,9 @@ new #[Title('Auto')] class extends Component
             $this->makeItem($vehicle, $preset['name'], $preset['interval_km'], $preset['interval_months']);
         }
 
-        $this->reset('newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->vehicleId = $vehicle->id;
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
     }
 
     public function selectVehicle(int $id): void
@@ -148,7 +171,7 @@ new #[Title('Auto')] class extends Component
         auth()->user()->accessibleVehicles()->findOrFail($id);
 
         $this->vehicleId = $id;
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
+        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
     }
 
     public function startEditingVehicle(): void
@@ -212,7 +235,7 @@ new #[Title('Auto')] class extends Component
         $vehicle->delete();
 
         $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
+        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
     }
 
     // --- Compartir --------------------------------------------------------
@@ -696,6 +719,19 @@ new #[Title('Auto')] class extends Component
         }
     }
 
+    // --- Gastos por período -----------------------------------------------
+
+    public function setSpendPeriod(string $period): void
+    {
+        $this->spendPeriod = in_array($period, ['mes', 'anio'], true) ? $period : 'mes';
+        $this->reset('spendLimit');
+    }
+
+    public function showMoreSpending(): void
+    {
+        $this->spendLimit += self::SPEND_PAGE;
+    }
+
     // --- Helpers ----------------------------------------------------------
 
     private function makeItem(Vehicle $vehicle, string $name, ?int $km, ?int $months): void
@@ -905,6 +941,57 @@ new #[Title('Auto')] class extends Component
     {
         return (float) ($this->vehicle?->fuelLogs()->sum('cost') ?? 0);
     }
+
+    /**
+     * Desglose de lo gastado por período (mes o año), del más reciente al
+     * más viejo, separando mantenimiento de combustible. Se agrupa en PHP
+     * para que funcione igual en SQLite y Postgres; de la base solo viajan
+     * las filas con costo.
+     */
+    #[Computed]
+    public function spendingByPeriod(): Collection
+    {
+        $vehicle = $this->vehicle;
+
+        if (! $vehicle) {
+            return collect();
+        }
+
+        $format = $this->spendPeriod === 'anio' ? 'Y' : 'Y-m';
+
+        $maintenance = $vehicle->maintenanceRecords()->whereNotNull('cost')->get(['performed_on', 'cost'])
+            ->groupBy(fn ($record) => $record->performed_on->format($format))
+            ->map(fn (Collection $rows) => (float) $rows->sum('cost'));
+
+        $fuel = $vehicle->fuelLogs()->whereNotNull('cost')->get(['filled_on', 'cost'])
+            ->groupBy(fn ($log) => $log->filled_on->format($format))
+            ->map(fn (Collection $rows) => (float) $rows->sum('cost'));
+
+        return $maintenance->keys()->concat($fuel->keys())->unique()
+            ->sortDesc()->values()
+            ->map(fn (string $period) => [
+                'period' => $period,
+                'label' => $this->spendPeriod === 'anio' ? $period : Carbon::createFromFormat('!Y-m', $period)->format('m/Y'),
+                'mantenimiento' => $maintenance->get($period, 0.0),
+                'combustible' => $fuel->get($period, 0.0),
+                'total' => $maintenance->get($period, 0.0) + $fuel->get($period, 0.0),
+            ]);
+    }
+
+    /**
+     * Períodos visibles, de a SPEND_PAGE; "Ver más" agranda la ventana.
+     */
+    #[Computed]
+    public function spending(): Collection
+    {
+        return $this->spendingByPeriod->take($this->spendLimit)->values();
+    }
+
+    #[Computed]
+    public function hasMoreSpending(): bool
+    {
+        return $this->spendingByPeriod->count() > $this->spendLimit;
+    }
 };
 ?>
 
@@ -915,13 +1002,16 @@ new #[Title('Auto')] class extends Component
     </header>
 
     @if (! $this->vehicle)
-        {{-- Sin auto todavía: alta --}}
+        {{-- Sin auto todavía --}}
         <p class="rounded-sm border border-cuero/20 px-4 py-6 text-center text-cuero/70">
             Todavía no cargaste ningún auto. Contame cuál es y empezamos a llevarle la cuenta.
         </p>
+    @endif
 
+    @if (! $this->vehicle || $this->addingVehicle)
+        {{-- Alta: el primer auto, o uno más --}}
         <form wire:submit="createVehicle" class="space-y-3 rounded-sm border border-cuero/20 p-4">
-            <h2 class="font-brand text-lg font-bold">Tu auto</h2>
+            <h2 class="font-brand text-lg font-bold">{{ $this->vehicle ? 'Otro auto' : 'Tu auto' }}</h2>
 
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -954,24 +1044,40 @@ new #[Title('Auto')] class extends Component
                 </div>
             </div>
 
-            <button type="submit" wire:loading.attr="disabled"
-                class="min-h-11 w-full rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60 sm:w-auto">
-                Guardar auto
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit" wire:loading.attr="disabled"
+                    class="min-h-11 w-full rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60 sm:w-auto">
+                    Guardar auto
+                </button>
+                @if ($this->vehicle)
+                    <button type="button" wire:click="cancelAddVehicle"
+                        class="min-h-11 rounded-sm px-3 text-cuero/70 hover:text-cuero">Cancelar</button>
+                @endif
+            </div>
         </form>
-    @else
+    @endif
+
+    @if ($this->vehicle)
         @php($vehicle = $this->vehicle)
 
-        {{-- Selector cuando hay más de un auto --}}
-        @if ($this->vehicles->count() > 1)
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Elegí un auto">
-                @foreach ($this->vehicles as $v)
-                    <button type="button" wire:click="selectVehicle({{ $v->id }})"
-                        @if ($v->id === $vehicle->id) aria-current="true" @endif
-                        class="min-h-11 rounded-sm border px-3 text-sm {{ $v->id === $vehicle->id ? 'border-grafito bg-grafito/10 font-semibold text-grafito' : 'border-cuero/30 text-cuero/70 hover:text-cuero' }}">
-                        {{ $v->nombre() }}@unless ($v->user_id === auth()->id())<span class="ml-1 text-xs font-normal text-cuero/50">· compartido</span>@endunless
+        {{-- Selector cuando hay más de un auto, con el alta de otro a mano --}}
+        @if ($this->vehicles->count() > 1 || ! $this->addingVehicle)
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Tus autos">
+                @if ($this->vehicles->count() > 1)
+                    @foreach ($this->vehicles as $v)
+                        <button type="button" wire:click="selectVehicle({{ $v->id }})"
+                            @if ($v->id === $vehicle->id) aria-current="true" @endif
+                            class="min-h-11 rounded-sm border px-3 text-sm {{ $v->id === $vehicle->id ? 'border-grafito bg-grafito/10 font-semibold text-grafito' : 'border-cuero/30 text-cuero/70 hover:text-cuero' }}">
+                            {{ $v->nombre() }}@unless ($v->user_id === auth()->id())<span class="ml-1 text-xs font-normal text-cuero/50">· compartido</span>@endunless
+                        </button>
+                    @endforeach
+                @endif
+                @unless ($this->addingVehicle)
+                    <button type="button" wire:click="startAddingVehicle"
+                        class="min-h-11 rounded-sm border border-dashed border-cuero/40 px-3 text-sm font-medium text-cuero/80 hover:text-cuero focus-visible:outline-2 focus-visible:outline-grafito">
+                        + Otro auto
                     </button>
-                @endforeach
+                @endunless
             </div>
         @endif
 
@@ -1743,5 +1849,48 @@ new #[Title('Auto')] class extends Component
                 @endif
             @endif
         </div>
+
+        {{-- Gastos por período --}}
+        @if ($this->spending->isNotEmpty())
+            <div class="space-y-3">
+                <div>
+                    <h2 class="font-brand text-lg font-bold">Gastos</h2>
+                    <p class="text-sm text-cuero/60">Cuánto se llevó el auto en cada período, entre mantenimiento y combustible.</p>
+                </div>
+
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Agrupar los gastos">
+                    @foreach (['mes' => 'Por mes', 'anio' => 'Por año'] as $valor => $etiqueta)
+                        <button type="button" wire:click="setSpendPeriod('{{ $valor }}')"
+                            aria-pressed="{{ $this->spendPeriod === $valor ? 'true' : 'false' }}"
+                            class="min-h-11 rounded-sm border px-3 text-sm {{ $this->spendPeriod === $valor ? 'border-grafito bg-grafito/10 font-semibold text-grafito' : 'border-cuero/30 text-cuero/70 hover:text-cuero' }} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-grafito">
+                            {{ $etiqueta }}
+                        </button>
+                    @endforeach
+                </div>
+
+                <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
+                    @foreach ($this->spending as $row)
+                        <li wire:key="gasto-{{ $this->spendPeriod }}-{{ $row['period'] }}" class="flex items-baseline justify-between gap-3 py-2.5">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium">{{ $row['label'] }}</p>
+                                <p class="text-xs text-cuero/60">
+                                    @if ($row['mantenimiento'] > 0)Mantenimiento {{ $this->pesos($row['mantenimiento']) }}@endif
+                                    @if ($row['mantenimiento'] > 0 && $row['combustible'] > 0) · @endif
+                                    @if ($row['combustible'] > 0)Combustible {{ $this->pesos($row['combustible']) }}@endif
+                                </p>
+                            </div>
+                            <span class="shrink-0 text-sm font-semibold">{{ $this->pesos($row['total']) }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+
+                @if ($this->hasMoreSpending)
+                    <button type="button" wire:click="showMoreSpending" wire:loading.attr="disabled"
+                        class="min-h-11 w-full rounded-sm border border-cuero/30 px-4 text-sm font-medium text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-grafito disabled:opacity-60">
+                        Ver más períodos
+                    </button>
+                @endif
+            </div>
+        @endif
     @endif
 </section>
