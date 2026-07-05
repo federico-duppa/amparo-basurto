@@ -29,6 +29,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Proyectos del módulo Tareas.
+     *
+     * @return HasMany<Project, $this>
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
      * Autos de los que este usuario es dueño.
      *
      * @return HasMany<Vehicle, $this>

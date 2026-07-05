@@ -31,4 +31,32 @@ class TodoFactory extends Factory
             'completed_at' => now(),
         ]);
     }
+
+    public function dueOn(string $date): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'due_date' => $date,
+        ]);
+    }
+
+    public function urgent(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'urgent' => true,
+        ]);
+    }
+
+    public function important(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'important' => true,
+        ]);
+    }
+
+    public function repeats(string $interval): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'repeat_interval' => $interval,
+        ]);
+    }
 }
