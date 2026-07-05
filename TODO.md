@@ -20,12 +20,8 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 ## Salud (`/salud`)
 
 - **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
-- **Vacunas como sección propia** (carnet/calendario). Hoy se registran como entradas de tipo "vacuna"; si el uso lo amerita, se estructura.
-- **Vencimientos y recordatorios**: próximo control, receta que caduca, estudio anual. Mismo patrón de "vencimiento" que la documentación de Auto.
-- **Contactos médicos por historia**: médico de cabecera, especialistas, teléfonos.
-- **Mediciones** (peso, presión, glucemia…) con su evolución en el tiempo.
+- **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (controles, recetas, próximas dosis) solo se ven al entrar al módulo. Bloqueado por la misma infraestructura transversal de notificaciones que Auto y Tareas.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
-- **Paginar el timeline de la historia.** `entries()` trae todas las entradas con `->get()` sin límite y las pinta en cada render; una historia con años de consultas crece sin techo. Paginar (o `simplePaginate`) ordenando por `occurred_on desc, id desc`.
 
 ## Plata (`/plata`)
 
