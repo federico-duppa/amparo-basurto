@@ -24,7 +24,7 @@ Cada auto tiene una lista de ítems de mantenimiento ("Cambio de aceite", "Corre
 - **Orden de la lista:** atrasados primero, después los "pronto", los al día, y al final los sin registrar; dentro del mismo estado, el más urgente arriba.
 - Un ítem **sin intervalos** no genera recordatorios: sirve solo para llevar historial. Con al menos una realización figura como "Al día", mostrando la última.
 - **Registrar una realización:** fecha, kilometraje, costo opcional y **nota opcional** (taller, qué se hizo exactamente, repuestos); el formulario precarga la fecha de hoy y el kilometraje actual del auto. Desde ahí se recalcula el próximo vencimiento. La nota de la última realización se muestra junto al "Último:".
-- **Historial de realizaciones:** cada ítem con al menos una realización muestra un "Ver historial" que despliega todas sus realizaciones (de la más reciente a la más vieja). Desde ahí cada una se puede **editar** (fecha, kilometraje, costo, nota) o **eliminar** suelta, con confirmación. Editar o registrar con un kilometraje mayor adelanta el del auto (nunca lo baja).
+- **Historial de realizaciones:** cada ítem con al menos una realización muestra un "Ver historial" que despliega sus realizaciones (de la más reciente a la más vieja, de a 10; "Ver más realizaciones" agranda la ventana, que vuelve a las últimas 10 al reabrir). Desde ahí cada una se puede **editar** (fecha, kilometraje, costo, nota) o **eliminar** suelta, con confirmación. Editar o registrar con un kilometraje mayor adelanta el del auto (nunca lo baja).
 
 ## Documentación
 
@@ -40,6 +40,7 @@ Vencimientos con fecha del auto: seguro, VTV, patente y cualquier otro papel que
 
 - Cada carga registra fecha, kilometraje y costo opcional; el formulario precarga la fecha de hoy.
 - La lista va de la más reciente a la más vieja (por fecha y, a igual fecha, por kilometraje) y muestra, para cada carga, los **km recorridos desde la carga anterior**. Si la cuenta diera negativa (cargas anotadas fuera de orden), ese dato no se muestra.
+- Se muestran las **últimas 20 cargas**; "Ver más cargas" agranda la ventana de a 20 (las viejas siguen ahí, solo dejan de ocupar la pantalla).
 - Cada carga se puede **editar** en línea (fecha, kilometraje, costo) o **eliminar**, con confirmación. Editar con un kilometraje mayor adelanta el del auto (nunca lo baja).
 - Totales acumulados de lo gastado en mantenimiento y en combustible, por separado (solo se muestran cuando hay algo gastado).
 
@@ -49,6 +50,7 @@ Vencimientos con fecha del auto: seguro, VTV, patente y cualquier otro papel que
 - Puede **dejar de compartirlo** cuando quiera ("Quitar", con confirmación); la otra persona deja de ver el auto.
 - Una persona con el auto compartido puede **ver todo y operar el día a día**: registrar mantenimientos y cargas, crear ítems nuevos, corregir el kilometraje, renovar documentos, y también **editar y eliminar** ítems de mantenimiento, realizaciones y cargas de combustible (incluso los que anotó otra persona). Cada registro guarda quién lo hizo y, **cuando el auto está compartido, la interfaz muestra quién anotó** cada realización, carga, documento y renovación ("Anotó {nombre}"); en un auto de una sola persona no se muestra. En su pantalla el auto figura como "Compartido por {dueño}".
 - **Solo el dueño** puede editar los datos del auto, eliminarlo y administrar con quién se comparte.
+- **Transferir la propiedad ("Hacer dueño"):** el dueño puede pasarle el auto a una persona con quien ya lo comparte, con confirmación previa. Esa persona pasa a ser la dueña (edita, elimina y comparte) y quien lo transfirió queda como persona con el auto compartido: no pierde acceso ni el historial, pero deja de tener las acciones de dueño. Así el auto no queda huérfano si el dueño deja de usar la app.
 - El scoping va por "autos accesibles" (propios ∪ compartidos); las acciones de dueño se chequean aparte contra la propiedad. Este es el patrón a seguir por cualquier módulo futuro que comparta.
 
 ## Backlog

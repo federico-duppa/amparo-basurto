@@ -708,6 +708,74 @@ class AutoPanelTest extends TestCase
             ->call('share');
     }
 
+    // --- Transferir la propiedad --------------------------------------------
+
+    public function test_el_dueno_puede_transferir_el_auto_a_alguien_con_quien_lo_comparte(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $otra = User::factory()->create();
+        $vehicle->members()->attach($otra);
+
+        Livewire::test('auto.panel')
+            ->call('transferOwnership', $otra->id)
+            ->assertHasNoErrors();
+
+        // La otra persona pasa a ser dueña y quien transfirió queda como compartido.
+        $this->assertSame($otra->id, $vehicle->fresh()->user_id);
+        $this->assertDatabaseHas('vehicle_user', ['vehicle_id' => $vehicle->id, 'user_id' => $this->user->id]);
+        $this->assertDatabaseMissing('vehicle_user', ['vehicle_id' => $vehicle->id, 'user_id' => $otra->id]);
+    }
+
+    public function test_quien_transfirio_sigue_viendo_el_auto_pero_sin_acciones_de_dueno(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['marca' => 'Peugeot', 'modelo' => '208']);
+        $otra = User::factory()->create(['name' => 'Martina']);
+        $vehicle->members()->attach($otra);
+
+        Livewire::test('auto.panel')->call('transferOwnership', $otra->id);
+
+        $this->get('/auto')
+            ->assertSee('Peugeot')
+            ->assertSee('Compartido por Martina');
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')->call('startEditingVehicle');
+    }
+
+    public function test_no_puede_transferir_a_alguien_que_no_tiene_el_auto_compartido(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $otra = User::factory()->create();
+
+        try {
+            Livewire::test('auto.panel')->call('transferOwnership', $otra->id);
+            $this->fail('No debería poder transferirse a alguien sin el auto compartido.');
+        } catch (ModelNotFoundException) {
+            // esperado
+        }
+
+        $this->assertSame($this->user->id, $vehicle->fresh()->user_id);
+    }
+
+    public function test_quien_recibe_el_auto_compartido_no_puede_transferirlo(): void
+    {
+        $owner = User::factory()->create();
+        $vehicle = Vehicle::factory()->for($owner)->create();
+        $vehicle->members()->attach($this->user);
+
+        try {
+            Livewire::test('auto.panel')
+                ->set('vehicleId', $vehicle->id)
+                ->call('transferOwnership', $this->user->id);
+            $this->fail('Transferir es una acción reservada al dueño.');
+        } catch (ModelNotFoundException) {
+            // esperado
+        }
+
+        $this->assertSame($owner->id, $vehicle->fresh()->user_id);
+    }
+
     // --- Nota en las realizaciones -----------------------------------------
 
     public function test_puede_registrar_un_mantenimiento_con_nota(): void
@@ -1007,5 +1075,60 @@ class AutoPanelTest extends TestCase
 
         $this->assertModelMissing($doc);
         $this->assertDatabaseCount('vehicle_document_renewals', 0);
+    }
+
+    // --- Listas acotadas con "Ver más" ---------------------------------------
+
+    public function test_la_lista_de_cargas_muestra_las_ultimas_y_ofrece_ver_mas(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+
+        // 25 cargas: un día y 100 km entre cada una; la más vieja es la del 01/01.
+        foreach (range(0, 24) as $i) {
+            FuelLog::factory()->for($this->user)->for($vehicle)->create([
+                'filled_on' => now()->parse('2026-01-01')->addDays($i),
+                'mileage' => 10000 + $i * 100,
+            ]);
+        }
+
+        $component = Livewire::test('auto.panel');
+
+        // Se ven las últimas 20; la carga extra de la ventana da los km de la última visible.
+        $this->assertCount(20, $component->instance()->fuelLogs);
+        $this->assertSame(100, $component->instance()->fuelLogs->last()['since']);
+        $component->assertSee('Ver más cargas')
+            ->assertDontSee('01/01/2026');
+
+        $component->call('showMoreFuel')
+            ->assertSee('01/01/2026')
+            ->assertDontSee('Ver más cargas');
+    }
+
+    public function test_el_historial_de_realizaciones_muestra_las_ultimas_y_ofrece_ver_mas(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+
+        foreach (range(0, 11) as $i) {
+            MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+                'performed_on' => now()->parse('2026-01-01')->addMonths($i),
+                'mileage' => 10000 + $i * 1000,
+            ]);
+        }
+
+        $component = Livewire::test('auto.panel')->call('toggleHistory', $item->id);
+
+        $this->assertCount(10, $component->instance()->history);
+        $component->assertSee('Ver más realizaciones')
+            ->assertDontSee('01/01/2026');
+
+        $component->call('showMoreHistory')
+            ->assertSee('01/01/2026')
+            ->assertDontSee('Ver más realizaciones');
+
+        // Cerrar y reabrir el historial vuelve a la ventana inicial.
+        $component->call('toggleHistory', $item->id)
+            ->call('toggleHistory', $item->id)
+            ->assertSee('Ver más realizaciones');
     }
 }
