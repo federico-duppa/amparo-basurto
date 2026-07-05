@@ -40,10 +40,6 @@ Cada auto tiene una lista de ítems de mantenimiento ("Cambio de aceite", "Corre
 - **Solo el dueño** puede editar los datos del auto, eliminarlo y administrar con quién se comparte.
 - El scoping va por "autos accesibles" (propios ∪ compartidos); las acciones de dueño se chequean aparte contra la propiedad. Este es el patrón a seguir por cualquier módulo futuro que comparta.
 
-## Fuera de alcance (por ahora)
+## Backlog
 
-- Alta de un segundo auto propio desde la interfaz (el selector ya contempla varios; falta el botón de alta).
-- Edición de ítems de mantenimiento, realizaciones y cargas ya guardadas (se elimina y se vuelve a crear; las realizaciones ni siquiera se eliminan sueltas).
-- Litros y consumo (las cargas guardan costo, no volumen).
-- Recordatorios activos (notificaciones); los vencimientos se ven al entrar al módulo.
-- Documentación del vehículo (seguro, VTV, patente) como vencimientos.
+Lo pendiente de este módulo vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).
