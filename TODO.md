@@ -22,6 +22,7 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Gastos por período.** Hoy solo hay totales acumulados de toda la vida del auto; falta un desglose por mes/año de mantenimiento vs. combustible. (Es plata, no rendimiento: el consumo en litros sigue descartado en WONTDO.)
 - **Transferir la propiedad del auto a otra persona.** Hoy solo se puede compartir; si el dueño deja de usar la app, el auto queda huérfano.
 - **Acotar la lista de cargas de combustible.** Se muestran todas sin límite; con uso real la pantalla crece sin freno. Mostrar las últimas N con un "ver más".
+- **Acotar el historial de realizaciones de mantenimiento.** El acordeón de cada ítem trae todas las realizaciones con `->get()` sin límite; con años de historia conviene paginar o mostrar las últimas N con "ver más".
 - **Partir el componente `auto.panel`.** ~1.500 líneas y ~30 propiedades públicas en un solo single-file component; separar en hijos (mantenimientos, combustible, documentación, compartir) para bajar el payload de Livewire por interacción y hacerlo más manejable.
 
 ## Salud (`/salud`)
@@ -32,10 +33,14 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Contactos médicos por historia**: médico de cabecera, especialistas, teléfonos.
 - **Mediciones** (peso, presión, glucemia…) con su evolución en el tiempo.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
+- **Paginar el timeline de la historia.** `entries()` trae todas las entradas con `->get()` sin límite y las pinta en cada render; una historia con años de consultas crece sin techo. Paginar (o `simplePaginate`) ordenando por `occurred_on desc, id desc`.
 
 ## Plata (`/plata`)
 
 - **Más monedas además de ARS y USD.**
+- **Precalcular los saldos en la lista de sobres (N+1).** Por cada sobre el listado llama `balance()` (dos sumas sobre movimientos + una sobre gastos), `currentTarget()` y `progress()` —que a su vez re-llama a los dos anteriores—, así que son ~9 queries por sobre. Con muchos sobres la pantalla dispara cientos de consultas. Precargar los agregados con `withSum`/subqueries en la computed `envelopes()` y derivar saldo/objetivo/progreso desde ahí. (La ficha individual del sobre ya resuelve saldo y objetivo una sola vez por render.)
+- **Evitar el N+1 de cotización/inflación en Reportes.** `Lens::value()` corre por cada gasto de los últimos 12 meses y por gasto puede pegarle a `ExchangeRate` y a `InflationRate`. La cotización de referencia es constante en todo el reporte (resolverla una vez fuera del `map`); `factorBetween` solo varía por mes (memoizar por `Y-m` o precargar el rango en una query); la serie de `ExchangeRate` se puede precargar e indexar en memoria por fecha.
+- **Paginar el historial del sobre.** `timeline()` carga todos los movimientos y todos los gastos del sobre, los concatena y ordena en PHP sin límite. Ordenar por fecha en SQL en cada query y acotar el merge (paginación o "ver más").
 
 ## Tareas (`/tareas`)
 
@@ -51,6 +56,7 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 - **Fechas en lenguaje natural al anotar** ("mañana", "el viernes").
 - **Orden manual (arrastrar)** dentro de las pendientes.
 - **Búsqueda y filtros** cuando la lista crece.
+- **Paginar y ordenar en SQL la vista Lista.** Hoy `todos()` hace `->get()` de todas las tareas (pendientes + completadas, sin techo) y ordena con `sortBy` + closures en PHP (recalcula el peso de Eisenhower O(n log n) por render). Mover el orden a `orderByRaw` (peso de Eisenhower, luego `due_date`, luego `id desc`) y paginar; así aprovecha los índices `(user_id, completed_at)` / `(user_id, due_date)` ya agregados. Las completadas podrían cargarse aparte/bajo demanda.
 - **Recordatorios activos (notificaciones) de vencimientos.** Comparte la infraestructura pendiente de Auto.
 - **Renombrar proyectos.** Hoy los proyectos solo se crean y se eliminan.
 - **Tareas desde otros módulos.** Que un vencimiento de Auto ("la VTV vence en 15 días") pueda generar una tarea con fecha.

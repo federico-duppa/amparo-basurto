@@ -294,7 +294,7 @@ new #[Title('Tareas')] class extends Component
         if ($this->view === 'hoy') {
             return $query->whereNull('completed_at')
                 ->whereNotNull('due_date')
-                ->whereDate('due_date', '<=', today())
+                ->where('due_date', '<', today()->addDay())
                 ->get()
                 ->sortBy([
                     fn (Todo $a, Todo $b) => $a->eisenhowerWeight() <=> $b->eisenhowerWeight(),
@@ -305,7 +305,7 @@ new #[Title('Tareas')] class extends Component
 
         if ($this->view === 'proximas') {
             return $query->whereNull('completed_at')
-                ->whereDate('due_date', '>', today())
+                ->where('due_date', '>=', today()->addDay())
                 ->get()
                 ->sortBy([
                     fn (Todo $a, Todo $b) => $a->due_date <=> $b->due_date,

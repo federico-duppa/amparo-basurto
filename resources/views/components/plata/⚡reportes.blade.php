@@ -31,7 +31,7 @@ new #[Title('Reportes')] class extends Component
     public function expenses(): Collection
     {
         return auth()->user()->expenses()
-            ->whereDate('spent_on', '>=', now()->subMonths(11)->startOfMonth()->toDateString())
+            ->where('spent_on', '>=', now()->subMonths(11)->startOfMonth())
             ->orderByDesc('spent_on')
             ->get();
     }
@@ -108,14 +108,17 @@ new #[Title('Reportes')] class extends Component
     <nav aria-label="Secciones de Plata" class="flex border-b border-cuero/20">
         <a
             href="{{ route('plata.gastos') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Gastos</a>
         <a
             href="{{ route('plata.sobres') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Sobres</a>
         <a
             href="{{ route('plata.reportes') }}"
+            wire:navigate
             aria-current="page"
             class="-mb-px flex min-h-11 items-center border-b-2 border-oliva px-3 text-sm font-semibold text-oliva"
         >Reportes</a>

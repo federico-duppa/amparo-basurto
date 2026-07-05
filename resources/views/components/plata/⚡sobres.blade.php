@@ -90,15 +90,18 @@ new #[Title('Sobres')] class extends Component
     <nav aria-label="Secciones de Plata" class="flex border-b border-cuero/20">
         <a
             href="{{ route('plata.gastos') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Gastos</a>
         <a
             href="{{ route('plata.sobres') }}"
+            wire:navigate
             aria-current="page"
             class="-mb-px flex min-h-11 items-center border-b-2 border-oliva px-3 text-sm font-semibold text-oliva"
         >Sobres</a>
         <a
             href="{{ route('plata.reportes') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Reportes</a>
     </nav>
@@ -215,6 +218,7 @@ new #[Title('Sobres')] class extends Component
                 <li wire:key="sobre-{{ $sobre->id }}">
                     <a
                         href="{{ route('plata.sobre', $sobre) }}"
+                        wire:navigate
                         class="flex items-center gap-3 rounded-sm border border-cuero/20 p-4 hover:border-oliva/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oliva"
                     >
                         <div class="min-w-0 flex-1">

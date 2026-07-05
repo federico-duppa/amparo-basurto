@@ -7,7 +7,8 @@
 
         <link rel="icon" type="image/svg+xml" href="{{ asset('icon.svg') }}">
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=bitter:600,700|inter:400,500,600" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+        <link href="https://fonts.bunny.net/css?family=bitter:600,700|inter:400,500,600&display=swap" rel="stylesheet">
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -19,7 +20,7 @@
                     aria-label="Módulos"
                     class="fixed inset-x-0 bottom-0 z-10 border-t border-cuero/20 bg-crema pb-[env(safe-area-inset-bottom)] lg:static lg:flex lg:min-h-dvh lg:w-60 lg:shrink-0 lg:flex-col lg:border-t-0 lg:border-r"
                 >
-                    <a href="{{ url('/') }}" class="hidden items-center gap-3 px-5 py-6 lg:flex">
+                    <a href="{{ url('/') }}" wire:navigate class="hidden items-center gap-3 px-5 py-6 lg:flex">
                         <img src="{{ asset('icon.svg') }}" alt="" aria-hidden="true" class="size-9 rounded-sm">
                         <span class="font-brand text-lg font-bold leading-tight">Amparo Basurto</span>
                     </a>
@@ -28,6 +29,7 @@
                         <li class="lg:w-full">
                             <a
                                 href="{{ route('todos') }}"
+                                wire:navigate
                                 @if (request()->routeIs('todos')) aria-current="page" @endif
                                 class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('todos') ? 'text-vino lg:bg-vino/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
@@ -41,6 +43,7 @@
                         <li class="lg:w-full">
                             <a
                                 href="{{ route('auto') }}"
+                                wire:navigate
                                 @if (request()->routeIs('auto')) aria-current="page" @endif
                                 class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('auto') ? 'text-grafito lg:bg-grafito/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
@@ -54,6 +57,7 @@
                         <li class="lg:w-full">
                             <a
                                 href="{{ route('salud') }}"
+                                wire:navigate
                                 @if (request()->routeIs('salud')) aria-current="page" @endif
                                 class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('salud') ? 'text-ciruela lg:bg-ciruela/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
@@ -67,6 +71,7 @@
                         <li class="lg:w-full">
                             <a
                                 href="{{ route('plata.gastos') }}"
+                                wire:navigate
                                 @if (request()->routeIs('plata.*')) aria-current="page" @endif
                                 class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('plata.*') ? 'text-oliva lg:bg-oliva/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
