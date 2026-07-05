@@ -15,7 +15,10 @@ Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es 
 
 ## Tareas (`/tareas`)
 
-- *(sin ítems descartados por ahora)*
+- **Niveles de prioridad (P1–P4 o alta/media/baja).** La priorización del módulo es la matriz de Eisenhower (urgente × importante); no se apila otra escala encima.
+- **Contextos GTD como entidad propia.** Las etiquetas (pendientes en TODO) cubren ese uso sin agregar otra estructura; el contexto "@computadora" envejeció mal.
+- **Energía o duración estimada por tarea.** Campos que nadie carga de forma sostenida; ruido en el formulario.
+- **Ceremonia GTD completa como flujo obligatorio** (inbox → clarificar → organizar como pasos forzados). La captura rápida y tachar siguen siendo el corazón del módulo; todo lo demás es opcional.
 
 ## Auto (`/auto`)
 
