@@ -19,4 +19,4 @@ Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es 
 
 ## Auto (`/auto`)
 
-- *(sin ítems descartados por ahora)*
+- **Litros y consumo en las cargas de combustible.** Las cargas registran costo, no volumen; el módulo no calcula rendimiento.
