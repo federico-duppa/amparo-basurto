@@ -14,6 +14,9 @@ class Vehicle extends Model
     /** @use HasFactory<VehicleFactory> */
     use HasFactory;
 
+    /** Días mínimos entre la primera y la última lectura para estimar el ritmo de uso. */
+    private const MIN_USAGE_DAYS = 14;
+
     protected $fillable = [
         'marca',
         'modelo',
@@ -42,6 +45,41 @@ class Vehicle extends Model
     public function nombre(): string
     {
         return trim($this->marca.' '.$this->modelo);
+    }
+
+    /**
+     * Ritmo de uso real del auto en km por día, deducido de las lecturas de
+     * kilometraje con fecha (cargas de combustible y realizaciones de
+     * mantenimiento). Compara la primera y la última lectura; si no hay al
+     * menos dos lecturas con {@see self::MIN_USAGE_DAYS} días y kilómetros
+     * recorridos entre medio, no hay datos suficientes y devuelve null.
+     */
+    public function kmPerDay(): ?float
+    {
+        $readings = $this->fuelLogs()->get(['filled_on', 'mileage'])
+            ->map(fn ($log) => ['on' => $log->filled_on, 'km' => $log->mileage])
+            ->concat(
+                $this->maintenanceRecords()->get(['performed_on', 'mileage'])
+                    ->map(fn ($record) => ['on' => $record->performed_on, 'km' => $record->mileage])
+            )
+            ->sortBy([['on', 'asc'], ['km', 'asc']])
+            ->values();
+
+        if ($readings->count() < 2) {
+            return null;
+        }
+
+        $first = $readings->first();
+        $last = $readings->last();
+
+        $days = $first['on']->diffInDays($last['on']);
+        $km = $last['km'] - $first['km'];
+
+        if ($days < self::MIN_USAGE_DAYS || $km <= 0) {
+            return null;
+        }
+
+        return $km / $days;
     }
 
     public function isOwnedBy(User $user): bool

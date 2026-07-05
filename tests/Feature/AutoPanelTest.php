@@ -8,6 +8,7 @@ use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleDocument;
+use App\Models\VehicleDocumentRenewal;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -705,5 +706,306 @@ class AutoPanelTest extends TestCase
             ->set('vehicleId', $ajeno->id)
             ->set('shareUsername', 'martina')
             ->call('share');
+    }
+
+    // --- Nota en las realizaciones -----------------------------------------
+
+    public function test_puede_registrar_un_mantenimiento_con_nota(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['kilometraje' => 40000]);
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startLog', $item->id)
+            ->set('logDate', '2026-07-01')
+            ->set('logMileage', 42000)
+            ->set('logNote', 'Taller de Raúl, aceite y filtro')
+            ->call('saveLog')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('maintenance_records', [
+            'maintenance_item_id' => $item->id,
+            'note' => 'Taller de Raúl, aceite y filtro',
+        ]);
+    }
+
+    public function test_la_nota_de_la_realizacion_es_opcional(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startLog', $item->id)
+            ->set('logDate', '2026-07-01')
+            ->set('logMileage', 10000)
+            ->set('logNote', '  ')
+            ->call('saveLog')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('maintenance_records', [
+            'maintenance_item_id' => $item->id,
+            'note' => null,
+        ]);
+    }
+
+    public function test_puede_editar_la_nota_de_una_realizacion(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+        $record = MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+            'mileage' => 10000,
+            'note' => 'Taller de Raúl',
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('toggleHistory', $item->id)
+            ->call('startEditingRecord', $record->id)
+            ->assertSet('editRecordNote', 'Taller de Raúl')
+            ->set('editRecordNote', 'Taller de Raúl, cambiaron también las bujías')
+            ->call('saveRecord')
+            ->assertHasNoErrors();
+
+        $this->assertSame('Taller de Raúl, cambiaron también las bujías', $record->fresh()->note);
+    }
+
+    // --- Ritmo de uso y estimación de fecha ---------------------------------
+
+    public function test_deduce_el_ritmo_de_uso_de_cargas_y_registros(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        FuelLog::factory()->for($this->user)->for($vehicle)->create([
+            'filled_on' => '2026-06-01',
+            'mileage' => 50000,
+        ]);
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+        MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+            'performed_on' => '2026-07-01',
+            'mileage' => 53000,
+        ]);
+
+        // 3.000 km en 30 días: 100 km por día.
+        $this->assertEqualsWithDelta(100.0, $vehicle->kmPerDay(), 0.001);
+    }
+
+    public function test_sin_lecturas_suficientes_no_hay_ritmo_de_uso(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+
+        // Sin lecturas.
+        $this->assertNull($vehicle->kmPerDay());
+
+        // Una sola lectura.
+        FuelLog::factory()->for($this->user)->for($vehicle)->create([
+            'filled_on' => '2026-07-01',
+            'mileage' => 50000,
+        ]);
+        $this->assertNull($vehicle->kmPerDay());
+
+        // Dos lecturas pero demasiado cercanas en el tiempo.
+        FuelLog::factory()->for($this->user)->for($vehicle)->create([
+            'filled_on' => '2026-07-04',
+            'mileage' => 50400,
+        ]);
+        $this->assertNull($vehicle->kmPerDay());
+    }
+
+    public function test_el_vencimiento_por_km_estima_fecha_con_el_ritmo_real(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['kilometraje' => 47000]);
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create([
+            'interval_km' => 10000,
+            'interval_months' => null,
+        ]);
+        MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+            'performed_on' => '2026-01-01',
+            'mileage' => 40000,
+        ]);
+
+        // Faltan 3.000 km a 100 km/día: unos 30 días.
+        $status = $item->fresh()->status(47000, 100.0);
+        $this->assertSame(30, $status['urgency']);
+        $this->assertStringContainsString(
+            '(aprox. el '.now()->addDays(30)->format('d/m/Y').')',
+            $status['detail'],
+        );
+    }
+
+    public function test_sin_ritmo_real_no_estima_fecha_y_usa_la_escala_supuesta(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['kilometraje' => 47000]);
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create([
+            'interval_km' => 10000,
+            'interval_months' => null,
+        ]);
+        MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+            'performed_on' => '2026-01-01',
+            'mileage' => 40000,
+        ]);
+
+        // Sin ritmo real se supone 40 km/día: 3.000 km ≈ 75 días, sin fecha estimada.
+        $status = $item->fresh()->status(47000);
+        $this->assertSame(75, $status['urgency']);
+        $this->assertStringNotContainsString('aprox.', $status['detail']);
+    }
+
+    // --- Quién anotó cada registro ------------------------------------------
+
+    public function test_en_un_auto_compartido_se_ve_quien_anoto_cada_registro(): void
+    {
+        $owner = User::factory()->create(['name' => 'Fede']);
+        $vehicle = Vehicle::factory()->for($owner)->create();
+        FuelLog::factory()->for($owner)->for($vehicle)->create();
+        VehicleDocument::factory()->for($owner)->for($vehicle)->create();
+        $vehicle->members()->attach($this->user);
+
+        $this->get('/auto')->assertSee('Anotó Fede');
+    }
+
+    public function test_en_un_auto_sin_compartir_no_se_muestra_quien_anoto(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        FuelLog::factory()->for($this->user)->for($vehicle)->create();
+        VehicleDocument::factory()->for($this->user)->for($vehicle)->create();
+
+        $this->get('/auto')->assertDontSee('Anotó');
+    }
+
+    // --- Renovación y periodicidad de documentos ----------------------------
+
+    public function test_puede_cargar_un_documento_con_periodicidad(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+
+        Livewire::test('auto.panel')
+            ->set('addingDocument', true)
+            ->set('docName', 'Seguro')
+            ->set('docExpiresOn', '2026-12-31')
+            ->set('docIntervalMonths', 6)
+            ->call('addDocument')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('vehicle_documents', [
+            'vehicle_id' => $vehicle->id,
+            'name' => 'Seguro',
+            'interval_months' => 6,
+        ]);
+    }
+
+    public function test_puede_editar_la_periodicidad_de_un_documento(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create(['interval_months' => 6]);
+
+        Livewire::test('auto.panel')
+            ->call('startEditingDocument', $doc->id)
+            ->assertSet('editDocIntervalMonths', 6)
+            ->set('editDocIntervalMonths', 12)
+            ->call('saveDocument')
+            ->assertHasNoErrors();
+
+        $this->assertSame(12, $doc->fresh()->interval_months);
+    }
+
+    public function test_renovar_un_documento_guarda_la_vigencia_anterior(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create([
+            'expires_on' => '2026-08-01',
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startRenewingDocument', $doc->id)
+            ->set('renewDocExpiresOn', '2027-02-01')
+            ->call('saveRenewal')
+            ->assertHasNoErrors()
+            ->assertSet('renewingDocumentId', null);
+
+        $doc->refresh();
+        $this->assertSame('2027-02-01', $doc->expires_on->format('Y-m-d'));
+
+        $renewal = $doc->renewals()->sole();
+        $this->assertSame('2026-08-01', $renewal->expires_on->format('Y-m-d'));
+        $this->assertSame($this->user->id, $renewal->user_id);
+    }
+
+    public function test_renovar_sugiere_la_proxima_fecha_segun_la_periodicidad(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create([
+            'expires_on' => '2026-08-01',
+            'interval_months' => 6,
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startRenewingDocument', $doc->id)
+            ->assertSet('renewDocExpiresOn', '2027-02-01');
+    }
+
+    public function test_sin_periodicidad_no_sugiere_fecha_al_renovar(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create([
+            'interval_months' => null,
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startRenewingDocument', $doc->id)
+            ->assertSet('renewDocExpiresOn', '');
+    }
+
+    public function test_el_nuevo_vencimiento_es_obligatorio_al_renovar(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startRenewingDocument', $doc->id)
+            ->set('renewDocExpiresOn', '')
+            ->call('saveRenewal')
+            ->assertHasErrors(['renewDocExpiresOn' => 'required']);
+
+        $this->assertDatabaseCount('vehicle_document_renewals', 0);
+    }
+
+    public function test_quien_recibe_el_auto_compartido_puede_renovar_un_documento(): void
+    {
+        $owner = User::factory()->create();
+        $vehicle = Vehicle::factory()->for($owner)->create();
+        $doc = VehicleDocument::factory()->for($owner)->for($vehicle)->create(['expires_on' => '2026-08-01']);
+        $vehicle->members()->attach($this->user);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $vehicle->id)
+            ->call('startRenewingDocument', $doc->id)
+            ->set('renewDocExpiresOn', '2027-08-01')
+            ->call('saveRenewal')
+            ->assertHasNoErrors();
+
+        // La renovación queda a nombre de quien la hizo (el invitado).
+        $this->assertSame($this->user->id, $doc->renewals()->sole()->user_id);
+    }
+
+    public function test_no_puede_renovar_documentos_de_autos_ajenos(): void
+    {
+        $ajeno = Vehicle::factory()->create();
+        $doc = VehicleDocument::factory()->for($ajeno->user)->for($ajeno)->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $ajeno->id)
+            ->call('startRenewingDocument', $doc->id);
+    }
+
+    public function test_al_eliminar_un_documento_se_borran_sus_vigencias_anteriores(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create();
+        VehicleDocumentRenewal::factory()->for($this->user)->for($doc, 'document')->create();
+
+        Livewire::test('auto.panel')->call('deleteDocument', $doc->id);
+
+        $this->assertModelMissing($doc);
+        $this->assertDatabaseCount('vehicle_document_renewals', 0);
     }
 }
