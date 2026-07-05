@@ -29,13 +29,63 @@ class User extends Authenticatable
     }
 
     /**
-     * Proyectos del módulo Tareas.
+     * Etiquetas del módulo Tareas.
+     *
+     * @return HasMany<Tag, $this>
+     */
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
+    }
+
+    /**
+     * Proyectos de los que este usuario es dueño.
      *
      * @return HasMany<Project, $this>
      */
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    /**
+     * Proyectos que otras personas compartieron con este usuario.
+     *
+     * @return BelongsToMany<Project, $this>
+     */
+    public function sharedProjects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_user')->withTimestamps();
+    }
+
+    /**
+     * Proyectos a los que el usuario tiene acceso: los propios más los
+     * compartidos. Se usa como relación de scoping (findOrFail sobre lo ajeno
+     * responde 404).
+     *
+     * @return Builder<Project>
+     */
+    public function accessibleProjects(): Builder
+    {
+        return Project::query()->where(fn (Builder $query) => $query
+            ->where('projects.user_id', $this->id)
+            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+    }
+
+    /**
+     * Tareas que el usuario puede ver y tachar: las propias más las que viven
+     * en un proyecto compartido con él. Editar, eliminar y reordenar siguen
+     * siendo cosa del dueño de cada tarea (se chequean aparte).
+     *
+     * @return Builder<Todo>
+     */
+    public function accessibleTodos(): Builder
+    {
+        $accessibleProjectIds = $this->accessibleProjects()->select('projects.id');
+
+        return Todo::query()->where(fn (Builder $query) => $query
+            ->where('todos.user_id', $this->id)
+            ->orWhereIn('todos.project_id', $accessibleProjectIds));
     }
 
     /**
