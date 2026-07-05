@@ -39,6 +39,7 @@ Plata reservada para gastos que sabés que vienen (el seguro, el service, el alq
 - Se fondea con aportes directos o con una **transferencia desde otro sobre**.
 - Los **gastos efectivos se imputan contra este sobre**, descontando su saldo.
 - Saldo emergente = lo fondeado − lo gastado. **Puede quedar negativo**: registrar un gasto real nunca se bloquea porque el sobre no alcance; si te pasaste, el sobre lo muestra en rojo y te lo dice.
+- Puede tener un **objetivo** opcional (cuánto se prevé gastar en total). Cuando lo tiene, un pago imputado puede marcarse como que **cumple parte del objetivo**: además de descontar el saldo, **le baja la vara por el mismo monto**. Ejemplo: objetivo 200, fondeado 100; un pago de 50 que cumple el objetivo deja el saldo en 50 y el objetivo en 150. Como el saldo, **el objetivo también emerge de la historia**: se reconstruye desde el `target_amount` menos lo que fueron cumpliendo los pagos (nunca baja de cero), así que editar o borrar el pago reajusta la vara sola.
 
 ### 3. Gasto efectivo
 
@@ -47,7 +48,7 @@ El evento real de gastar: descripción, categoría, monto, moneda y fecha (no se
 Dos formas:
 
 - **Suelto:** el día a día, no pertenece a ningún sobre. Mantiene liviano el uso cotidiano.
-- **Imputado a un sobre de gasto previsto:** descuenta el saldo de ese sobre. Solo se imputa a sobres de gasto (nunca de ahorro) y **en la misma moneda del sobre**; si no coincide, Amparo sugiere anotarlo suelto o en la moneda del sobre.
+- **Imputado a un sobre de gasto previsto:** descuenta el saldo de ese sobre. Solo se imputa a sobres de gasto (nunca de ahorro) y **en la misma moneda del sobre**; si no coincide, Amparo sugiere anotarlo suelto o en la moneda del sobre. Si el sobre tiene objetivo, el gasto puede marcarse como que **cumple parte del objetivo** y bajarlo por su monto (ver "Sobre de gasto previsto"); marcarlo no tiene efecto en gastos sueltos ni en sobres sin objetivo.
 
 En ambos casos el gasto cuenta igual en los reportes. Las categorías son texto libre, con sugerencias a partir de las ya usadas. Comprar dólares para gastar después no se registra como nada; cuando gastás esos USD, es un gasto efectivo en USD a la cotización de ese día.
 

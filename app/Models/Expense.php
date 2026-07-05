@@ -21,6 +21,7 @@ class Expense extends Model
         'spent_on',
         'rate_ars',
         'rate_source',
+        'reduces_target',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class Expense extends Model
             'amount' => 'decimal:2',
             'spent_on' => 'date',
             'rate_ars' => 'decimal:4',
+            'reduces_target' => 'boolean',
         ];
     }
 

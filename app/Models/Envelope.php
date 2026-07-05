@@ -93,7 +93,8 @@ class Envelope extends Model
     /**
      * El objetivo vigente. En sobres indexados lo guardado es siempre nominal;
      * lo único que se indexa es la vara: el objetivo re-expresado por IPC
-     * desde su mes base hasta hoy.
+     * desde su mes base hasta hoy. Los pagos que cumplen el objetivo lo van
+     * bajando: como el saldo, la vara también emerge de la historia.
      */
     public function currentTarget(): ?float
     {
@@ -107,7 +108,16 @@ class Envelope extends Model
             $target *= InflationRate::factorBetween($this->target_month, now());
         }
 
-        return $target;
+        return max(0, $target - $this->targetReducedByPayments());
+    }
+
+    /**
+     * Cuánto se le bajó al objetivo por pagos marcados como "cumplen el objetivo".
+     * Solo los gastos imputados a un sobre de gasto pueden hacerlo.
+     */
+    public function targetReducedByPayments(): float
+    {
+        return (float) $this->expenses()->where('reduces_target', true)->sum('amount');
     }
 
     /**

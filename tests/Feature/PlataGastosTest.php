@@ -165,6 +165,138 @@ class PlataGastosTest extends TestCase
         $this->assertEqualsWithDelta(60000.0, $sobre->fresh()->balance(), 0.001);
     }
 
+    public function test_un_pago_puede_cumplir_el_objetivo_y_baja_la_vara_por_el_mismo_monto(): void
+    {
+        // El ejemplo de la foto: sobre con objetivo 200, fondeado 100.
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create([
+            'currency' => 'ARS',
+            'target_amount' => 200,
+        ]);
+        EnvelopeMovement::factory()->for($this->user)->for($sobre)->create(['amount' => 100]);
+
+        Livewire::test('plata.gastos')
+            ->set('description', 'Materiales')
+            ->set('category', 'Construcción')
+            ->set('amount', '50')
+            ->set('currency', 'ARS')
+            ->set('envelopeId', (string) $sobre->id)
+            ->set('reducesTarget', true)
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('expenses', [
+            'envelope_id' => $sobre->id,
+            'description' => 'Materiales',
+            'reduces_target' => true,
+        ]);
+
+        $sobre->refresh();
+        // Queda con 50 de saldo y el objetivo ajustado a 150.
+        $this->assertEqualsWithDelta(50.0, $sobre->balance(), 0.001);
+        $this->assertEqualsWithDelta(150.0, $sobre->currentTarget(), 0.001);
+    }
+
+    public function test_sin_marcar_no_toca_el_objetivo(): void
+    {
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create([
+            'currency' => 'ARS',
+            'target_amount' => 200,
+        ]);
+        EnvelopeMovement::factory()->for($this->user)->for($sobre)->create(['amount' => 100]);
+
+        Livewire::test('plata.gastos')
+            ->set('description', 'Materiales')
+            ->set('category', 'Construcción')
+            ->set('amount', '50')
+            ->set('currency', 'ARS')
+            ->set('envelopeId', (string) $sobre->id)
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $sobre->refresh();
+        $this->assertEqualsWithDelta(50.0, $sobre->balance(), 0.001);
+        $this->assertEqualsWithDelta(200.0, $sobre->currentTarget(), 0.001);
+    }
+
+    public function test_cumplir_el_objetivo_se_ignora_si_el_sobre_no_tiene_objetivo(): void
+    {
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create([
+            'currency' => 'ARS',
+            'target_amount' => null,
+        ]);
+
+        Livewire::test('plata.gastos')
+            ->set('description', 'Materiales')
+            ->set('category', 'Construcción')
+            ->set('amount', '50')
+            ->set('currency', 'ARS')
+            ->set('envelopeId', (string) $sobre->id)
+            ->set('reducesTarget', true)
+            ->call('add')
+            ->assertHasNoErrors();
+
+        // Sin objetivo no hay vara que bajar: el gasto queda como cualquier otro.
+        $this->assertDatabaseHas('expenses', [
+            'envelope_id' => $sobre->id,
+            'reduces_target' => false,
+        ]);
+    }
+
+    public function test_cumplir_el_objetivo_se_ignora_en_un_gasto_suelto(): void
+    {
+        Livewire::test('plata.gastos')
+            ->set('description', 'Materiales')
+            ->set('category', 'Construcción')
+            ->set('amount', '50')
+            ->set('currency', 'ARS')
+            ->set('reducesTarget', true)
+            ->call('add')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('expenses', [
+            'envelope_id' => null,
+            'reduces_target' => false,
+        ]);
+    }
+
+    public function test_cambiar_de_sobre_resetea_el_cumple_objetivo(): void
+    {
+        $conObjetivo = Envelope::factory()->gasto()->for($this->user)->create([
+            'currency' => 'ARS',
+            'target_amount' => 200,
+        ]);
+        $otro = Envelope::factory()->gasto()->for($this->user)->create(['currency' => 'ARS']);
+
+        Livewire::test('plata.gastos')
+            ->set('envelopeId', (string) $conObjetivo->id)
+            ->set('reducesTarget', true)
+            ->set('envelopeId', (string) $otro->id)
+            ->assertSet('reducesTarget', false);
+    }
+
+    public function test_puede_editar_el_cumple_objetivo_de_un_gasto(): void
+    {
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create([
+            'currency' => 'ARS',
+            'target_amount' => 200,
+        ]);
+        $gasto = Expense::factory()->for($this->user)->for($sobre)->create([
+            'amount' => '50.00',
+            'currency' => 'ARS',
+            'reduces_target' => false,
+        ]);
+
+        Livewire::test('plata.gastos')
+            ->call('startEditing', $gasto->id)
+            ->assertSet('reducesTarget', false)
+            ->set('reducesTarget', true)
+            ->call('update')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($gasto->fresh()->reduces_target);
+        $this->assertEqualsWithDelta(150.0, $sobre->fresh()->currentTarget(), 0.001);
+    }
+
     public function test_no_deja_imputar_un_gasto_en_otra_moneda_que_la_del_sobre(): void
     {
         $sobre = Envelope::factory()->gasto()->for($this->user)->create(['currency' => 'ARS']);
