@@ -40,6 +40,7 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - **Design tokens** en `resources/css/app.css` vía `@theme` de Tailwind 4 (config CSS-first, no hay `tailwind.config.js`): ahí viven la paleta (`crema`, `cuero`, `ocre`, `monte`, `teja`, `yerba`, acentos de módulo…) y las fuentes (`font-sans` = Inter, `font-brand` = Bitter). Usar siempre los tokens, nunca hex sueltos en las vistas.
 - **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
 - Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase` y `actingAs()`.
+- **Specs funcionales en `docs/`**: cada módulo tiene su descripción funcional (`docs/<módulo>.md`, índice en `docs/README.md`) — qué hace, reglas y decisiones, sin detalle de implementación. Al crear un módulo o cambiar su comportamiento, actualizar la spec en el mismo PR.
 
 ### Deploy (Laravel Cloud)
 
