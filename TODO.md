@@ -15,9 +15,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (mantenimientos y documentación) solo se ven al entrar al módulo.
 - **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono.
 - **Gastos por período.** Hoy solo hay totales acumulados de toda la vida del auto; falta un desglose por mes/año de mantenimiento vs. combustible. (Es plata, no rendimiento: el consumo en litros sigue descartado en WONTDO.)
-- **Transferir la propiedad del auto a otra persona.** Hoy solo se puede compartir; si el dueño deja de usar la app, el auto queda huérfano.
-- **Acotar la lista de cargas de combustible.** Se muestran todas sin límite; con uso real la pantalla crece sin freno. Mostrar las últimas N con un "ver más".
-- **Acotar el historial de realizaciones de mantenimiento.** El acordeón de cada ítem trae todas las realizaciones con `->get()` sin límite; con años de historia conviene paginar o mostrar las últimas N con "ver más".
 - **Partir el componente `auto.panel`.** ~1.500 líneas y ~30 propiedades públicas en un solo single-file component; separar en hijos (mantenimientos, combustible, documentación, compartir) para bajar el payload de Livewire por interacción y hacerlo más manejable.
 
 ## Salud (`/salud`)

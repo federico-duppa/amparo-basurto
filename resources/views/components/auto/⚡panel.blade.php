@@ -3,12 +3,19 @@
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Auto')] class extends Component
 {
+    /** Cargas de combustible visibles por página; "Ver más" agranda la ventana. */
+    private const FUEL_PAGE = 20;
+
+    /** Realizaciones visibles por página en el historial de un ítem. */
+    private const HISTORY_PAGE = 10;
+
     // Auto seleccionado (null hasta que exista alguno).
     public ?int $vehicleId = null;
 
@@ -52,6 +59,7 @@ new #[Title('Auto')] class extends Component
 
     // Historial de realizaciones desplegado y edición de una realización.
     public ?int $historyItemId = null;
+    public int $historyLimit = self::HISTORY_PAGE;
     public ?int $editingRecordId = null;
     public string $editRecordDate = '';
     public ?int $editRecordMileage = null;
@@ -59,6 +67,7 @@ new #[Title('Auto')] class extends Component
     public string $editRecordNote = '';
 
     // Carga de combustible.
+    public int $fuelLimit = self::FUEL_PAGE;
     public string $fuelDate = '';
     public ?int $fuelMileage = null;
     public ?string $fuelCost = null;
@@ -139,7 +148,7 @@ new #[Title('Auto')] class extends Component
         auth()->user()->accessibleVehicles()->findOrFail($id);
 
         $this->vehicleId = $id;
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
     }
 
     public function startEditingVehicle(): void
@@ -203,7 +212,7 @@ new #[Title('Auto')] class extends Component
         $vehicle->delete();
 
         $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
     }
 
     // --- Compartir --------------------------------------------------------
@@ -248,6 +257,25 @@ new #[Title('Auto')] class extends Component
     public function unshare(int $userId): void
     {
         $this->requireOwnedVehicle()->members()->detach($userId);
+    }
+
+    /**
+     * Pasarle el auto a una persona con quien ya se comparte: ella queda como
+     * dueña y quien lo transfiere pasa a verlo como compartido. Así el auto
+     * no queda huérfano si el dueño deja de usar la app.
+     */
+    public function transferOwnership(int $userId): void
+    {
+        $vehicle = $this->requireOwnedVehicle();
+        $newOwner = $vehicle->members()->findOrFail($userId);
+
+        DB::transaction(function () use ($vehicle, $newOwner) {
+            $vehicle->members()->detach($newOwner->id);
+            $vehicle->members()->attach($vehicle->user_id);
+            $vehicle->user()->associate($newOwner)->save();
+        });
+
+        $this->reset('editingVehicle', 'shareUsername');
     }
 
     // --- Mantenimientos ---------------------------------------------------
@@ -380,7 +408,13 @@ new #[Title('Auto')] class extends Component
     {
         // Acordeón: abrir un historial cierra el que estuviera abierto.
         $this->historyItemId = $this->historyItemId === $id ? null : $id;
+        $this->reset('historyLimit');
         $this->cancelEditRecord();
+    }
+
+    public function showMoreHistory(): void
+    {
+        $this->historyLimit += self::HISTORY_PAGE;
     }
 
     public function startEditingRecord(int $id): void
@@ -521,6 +555,11 @@ new #[Title('Auto')] class extends Component
         if ($this->editingFuelId === $id) {
             $this->cancelEditFuel();
         }
+    }
+
+    public function showMoreFuel(): void
+    {
+        $this->fuelLimit += self::FUEL_PAGE;
     }
 
     // --- Documentación ----------------------------------------------------
@@ -757,11 +796,27 @@ new #[Title('Auto')] class extends Component
     }
 
     /**
-     * Historial completo de realizaciones del ítem desplegado, de la más
-     * reciente a la más vieja.
+     * Realizaciones del ítem desplegado, de la más reciente a la más vieja.
+     * Se muestran de a HISTORY_PAGE; "Ver más" agranda la ventana.
      */
     #[Computed]
     public function history(): Collection
+    {
+        return $this->historyWindow->take($this->historyLimit)->values();
+    }
+
+    #[Computed]
+    public function hasMoreHistory(): bool
+    {
+        return $this->historyWindow->count() > $this->historyLimit;
+    }
+
+    /**
+     * Ventana de realizaciones acotada en SQL: con limit+1 alcanza para
+     * armar la página y saber si hay más, sin cargar años de historia.
+     */
+    #[Computed]
+    public function historyWindow(): Collection
     {
         if ($this->historyItemId === null) {
             return collect();
@@ -770,12 +825,39 @@ new #[Title('Auto')] class extends Component
         $item = $this->vehicle?->maintenanceItems()->find($this->historyItemId);
 
         return $item
-            ? $item->records()->with('user')->orderByDesc('performed_on')->orderByDesc('mileage')->get()
+            ? $item->records()->with('user')->orderByDesc('performed_on')->orderByDesc('mileage')->limit($this->historyLimit + 1)->get()
             : collect();
     }
 
+    /**
+     * Cargas visibles, de a FUEL_PAGE, cada una con los km recorridos desde
+     * la anterior; "Ver más" agranda la ventana.
+     */
     #[Computed]
     public function fuelLogs(): Collection
+    {
+        $window = $this->fuelWindow;
+
+        return $window->take($this->fuelLimit)->map(function ($log, $index) use ($window) {
+            $previous = $window->get($index + 1); // la carga inmediatamente anterior
+            $since = $previous ? $log->mileage - $previous->mileage : null;
+
+            return ['log' => $log, 'since' => $since !== null && $since >= 0 ? $since : null];
+        });
+    }
+
+    #[Computed]
+    public function hasMoreFuel(): bool
+    {
+        return $this->fuelWindow->count() > $this->fuelLimit;
+    }
+
+    /**
+     * Ventana de cargas acotada en SQL: la carga extra del limit+1 da los
+     * "km desde la anterior" de la última visible y avisa si hay más.
+     */
+    #[Computed]
+    public function fuelWindow(): Collection
     {
         $vehicle = $this->vehicle;
 
@@ -783,14 +865,9 @@ new #[Title('Auto')] class extends Component
             return collect();
         }
 
-        $logs = $vehicle->fuelLogs()->with('user')->orderByDesc('filled_on')->orderByDesc('mileage')->get();
-
-        return $logs->map(function ($log, $index) use ($logs) {
-            $previous = $logs->get($index + 1); // la carga inmediatamente anterior
-            $since = $previous ? $log->mileage - $previous->mileage : null;
-
-            return ['log' => $log, 'since' => $since !== null && $since >= 0 ? $since : null];
-        });
+        return $vehicle->fuelLogs()->with('user')
+            ->orderByDesc('filled_on')->orderByDesc('mileage')
+            ->limit($this->fuelLimit + 1)->get();
     }
 
     /**
@@ -1014,6 +1091,12 @@ new #[Title('Auto')] class extends Component
                                     <p class="text-sm font-medium">{{ $member->name }}</p>
                                     <p class="text-xs text-cuero/50">{{ '@'.$member->username }}</p>
                                 </div>
+                                <button type="button" wire:click="transferOwnership({{ $member->id }})"
+                                    wire:confirm="Vas a pasarle este auto a {{ $member->name }}: va a ser quien pueda editarlo, eliminarlo y compartirlo. Vos lo vas a seguir viendo como compartido."
+                                    aria-label="Hacer que {{ $member->name }} sea quien tenga el auto a su nombre"
+                                    class="min-h-11 shrink-0 rounded-sm px-3 text-sm text-cuero/70 hover:text-grafito focus-visible:outline-2 focus-visible:outline-grafito">
+                                    Hacer dueño
+                                </button>
                                 <button type="button" wire:click="unshare({{ $member->id }})"
                                     wire:confirm="Vas a dejar de compartir el auto con {{ $member->name }}. Ya no va a poder verlo."
                                     aria-label="Dejar de compartir con {{ $member->name }}"
@@ -1278,6 +1361,13 @@ new #[Title('Auto')] class extends Component
                                             </li>
                                         @endforeach
                                     </ul>
+
+                                    @if ($this->hasMoreHistory)
+                                        <button type="button" wire:click="showMoreHistory" wire:loading.attr="disabled"
+                                            class="mt-2 min-h-11 w-full rounded-sm border border-cuero/30 px-4 text-sm font-medium text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-grafito disabled:opacity-60">
+                                            Ver más realizaciones
+                                        </button>
+                                    @endif
                                 @endif
                             @endif
                             @endif
@@ -1644,6 +1734,13 @@ new #[Title('Auto')] class extends Component
                         </li>
                     @endforeach
                 </ul>
+
+                @if ($this->hasMoreFuel)
+                    <button type="button" wire:click="showMoreFuel" wire:loading.attr="disabled"
+                        class="min-h-11 w-full rounded-sm border border-cuero/30 px-4 text-sm font-medium text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-grafito disabled:opacity-60">
+                        Ver más cargas
+                    </button>
+                @endif
             @endif
         </div>
     @endif
