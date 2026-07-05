@@ -14,7 +14,7 @@ Mantenimiento del vehículo: qué le toca al auto y cuándo, historial de lo que
 Cada auto tiene una lista de ítems de mantenimiento ("Cambio de aceite", "Correa de distribución"…), cada uno con un intervalo en **km**, en **meses**, ambos o ninguno.
 
 - **Presets:** al crear un auto se precargan tres sugerencias: cambio de aceite (10.000 km / 12 meses), bujías (40.000 km) y correa de distribución (60.000 km / 60 meses). Son ítems comunes que se pueden borrar como cualquier otro.
-- **Los ítems no se editan:** para cambiar el nombre o los intervalos de uno hay que eliminarlo y crearlo de nuevo — y **eliminar un ítem borra también su historial de realizaciones** (con confirmación previa que lo avisa).
+- **Editar un ítem:** el lápiz de cada ítem abre un formulario en línea para corregir el nombre y los intervalos (km, meses, ambos o ninguno; mismas reglas que al crearlo). Cambiar los intervalos recalcula el próximo vencimiento; el historial de realizaciones no se toca. **Eliminar un ítem borra también su historial de realizaciones** (con confirmación previa que lo avisa).
 - **Estado calculado:** contra el kilometraje actual y la fecha de hoy, cada ítem está en uno de cuatro estados:
   - **Sin registrar** — nunca se anotó una realización; no hay desde dónde calcular.
   - **Al día** — falta más de 1.000 km y más de 30 días para el vencimiento.
@@ -23,20 +23,30 @@ Cada auto tiene una lista de ítems de mantenimiento ("Cambio de aceite", "Corre
 - Si el ítem tiene los dos intervalos, manda el más urgente. Para ordenar la lista por criticidad, km y tiempo compiten en una misma escala (1 día ≈ 40 km).
 - **Orden de la lista:** atrasados primero, después los "pronto", los al día, y al final los sin registrar; dentro del mismo estado, el más urgente arriba.
 - Un ítem **sin intervalos** no genera recordatorios: sirve solo para llevar historial. Con al menos una realización figura como "Al día", mostrando la última.
-- **Registrar una realización:** fecha, kilometraje y costo opcional; el formulario precarga la fecha de hoy y el kilometraje actual del auto. Desde ahí se recalcula el próximo vencimiento. Una realización guardada no se puede editar ni eliminar suelta: solo desaparece con su ítem o con el auto.
+- **Registrar una realización:** fecha, kilometraje y costo opcional; el formulario precarga la fecha de hoy y el kilometraje actual del auto. Desde ahí se recalcula el próximo vencimiento.
+- **Historial de realizaciones:** cada ítem con al menos una realización muestra un "Ver historial" que despliega todas sus realizaciones (de la más reciente a la más vieja). Desde ahí cada una se puede **editar** (fecha, kilometraje, costo) o **eliminar** suelta, con confirmación. Editar o registrar con un kilometraje mayor adelanta el del auto (nunca lo baja).
+
+## Documentación
+
+Vencimientos con fecha del auto: seguro, VTV, patente y cualquier otro papel que caduque.
+
+- Cada documento tiene **nombre**, **fecha de vencimiento** y una **nota opcional** (compañía, número de póliza…). El nombre sugiere Seguro, VTV y Patente, pero es texto libre.
+- **Estado calculado** contra la fecha de hoy, en tres niveles: **Vencido** (ya pasó), **Por vencer** (faltan 30 días o menos) y **Al día** (falta más). La lista se ordena por urgencia: lo vencido y lo que se viene primero.
+- Se pueden **editar** (nombre, fecha, nota) y **eliminar**, con confirmación. Igual que el resto del auto, quien tiene el auto compartido también puede operar la documentación.
+- Es la misma idea de "vencimiento" que los mantenimientos, pero anclada solo a una fecha (no al kilometraje).
 
 ## Combustible
 
 - Cada carga registra fecha, kilometraje y costo opcional; el formulario precarga la fecha de hoy.
 - La lista va de la más reciente a la más vieja (por fecha y, a igual fecha, por kilometraje) y muestra, para cada carga, los **km recorridos desde la carga anterior**. Si la cuenta diera negativa (cargas anotadas fuera de orden), ese dato no se muestra.
-- Las cargas se pueden **eliminar** una a una, con confirmación. No se editan: se elimina y se vuelve a anotar.
+- Cada carga se puede **editar** en línea (fecha, kilometraje, costo) o **eliminar**, con confirmación. Editar con un kilometraje mayor adelanta el del auto (nunca lo baja).
 - Totales acumulados de lo gastado en mantenimiento y en combustible, por separado (solo se muestran cuando hay algo gastado).
 
 ## Compartir
 
 - El **dueño** comparte el auto por nombre de usuario exacto (insensible a mayúsculas). Amparo avisa si no encuentra a nadie con ese usuario, si es el propio dueño o si ya lo estaba compartiendo con esa persona.
 - Puede **dejar de compartirlo** cuando quiera ("Quitar", con confirmación); la otra persona deja de ver el auto.
-- Una persona con el auto compartido puede **ver todo y operar el día a día**: registrar mantenimientos y cargas, crear ítems nuevos, corregir el kilometraje, y también **eliminar** ítems de mantenimiento y cargas de combustible (incluso los que anotó otra persona). Cada registro guarda quién lo hizo. En su pantalla el auto figura como "Compartido por {dueño}".
+- Una persona con el auto compartido puede **ver todo y operar el día a día**: registrar mantenimientos y cargas, crear ítems nuevos, corregir el kilometraje, y también **editar y eliminar** ítems de mantenimiento, realizaciones y cargas de combustible (incluso los que anotó otra persona). Cada registro guarda quién lo hizo. En su pantalla el auto figura como "Compartido por {dueño}".
 - **Solo el dueño** puede editar los datos del auto, eliminarlo y administrar con quién se comparte.
 - El scoping va por "autos accesibles" (propios ∪ compartidos); las acciones de dueño se chequean aparte contra la propiedad. Este es el patrón a seguir por cualquier módulo futuro que comparta.
 

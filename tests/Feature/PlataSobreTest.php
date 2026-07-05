@@ -275,6 +275,76 @@ class PlataSobreTest extends TestCase
         $this->assertModelExists($movimientoAjeno);
     }
 
+    public function test_puede_editar_un_aporte(): void
+    {
+        $sobre = $this->sobre();
+        $mov = EnvelopeMovement::factory()->for($this->user)->for($sobre)->create([
+            'amount' => 50000,
+            'moved_on' => now()->subMonth()->format('Y-m-d'),
+            'note' => 'Sueldo',
+        ]);
+
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingMovement', $mov->id)
+            ->assertSet('editingMovementId', $mov->id)
+            ->assertSet('editMovementNote', 'Sueldo')
+            ->set('editMovementAmount', '70000')
+            ->set('editMovementNote', 'Aguinaldo')
+            ->call('updateMovement')
+            ->assertHasNoErrors()
+            ->assertSet('editingMovementId', null);
+
+        $mov->refresh();
+        $this->assertSame('70000.00', $mov->amount);
+        $this->assertSame('Aguinaldo', $mov->note);
+        $this->assertEqualsWithDelta(70000.0, $sobre->fresh()->balance(), 0.001);
+    }
+
+    public function test_editar_un_retiro_no_puede_dejar_el_sobre_en_rojo(): void
+    {
+        $sobre = $this->sobre();
+        EnvelopeMovement::factory()->for($this->user)->for($sobre)->create(['amount' => 100000]);
+        $retiro = EnvelopeMovement::factory()->for($this->user)->for($sobre)->retiro()->create(['amount' => 30000]);
+
+        // Hay $70.000 de saldo; sin este retiro habría $100.000. Sacar $120.000 no entra.
+        Livewire::test('plata.sobre', ['envelope' => $sobre->id])
+            ->call('startEditingMovement', $retiro->id)
+            ->set('editMovementAmount', '120000')
+            ->call('updateMovement')
+            ->assertHasErrors(['editMovementAmount']);
+
+        $this->assertSame('30000.00', $retiro->fresh()->amount);
+    }
+
+    public function test_no_permite_editar_una_transferencia(): void
+    {
+        $origen = $this->sobre();
+        $destino = Envelope::factory()->gasto()->for($this->user)->create(['currency' => 'ARS']);
+        EnvelopeMovement::factory()->for($this->user)->for($origen)->create(['amount' => 100000]);
+
+        Livewire::test('plata.sobre', ['envelope' => $origen->id])
+            ->set('transferAmount', '40000')
+            ->set('transferTo', (string) $destino->id)
+            ->call('transfer');
+
+        $out = $origen->movements()->where('type', EnvelopeMovement::TRANSFER_OUT)->first();
+
+        Livewire::test('plata.sobre', ['envelope' => $origen->id])
+            ->call('startEditingMovement', $out->id)
+            ->assertSet('editingMovementId', null);
+    }
+
+    public function test_no_puede_editar_movimientos_de_sobres_ajenos(): void
+    {
+        $propio = $this->sobre();
+        $movimientoAjeno = EnvelopeMovement::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('plata.sobre', ['envelope' => $propio->id])
+            ->call('startEditingMovement', $movimientoAjeno->id);
+    }
+
     public function test_al_eliminar_un_sobre_los_gastos_quedan_sueltos(): void
     {
         $sobre = Envelope::factory()->gasto()->for($this->user)->create();

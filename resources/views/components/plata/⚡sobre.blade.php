@@ -26,6 +26,15 @@ new #[Title('Sobre')] class extends Component
 
     public string $transferTo = '';
 
+    // Edición de un movimiento suelto (aporte o retiro; las transferencias no se editan).
+    public ?int $editingMovementId = null;
+
+    public string $editMovementAmount = '';
+
+    public string $editMovementDate = '';
+
+    public string $editMovementNote = '';
+
     public function mount(int $envelope): void
     {
         $this->envelopeId = $envelope;
@@ -171,6 +180,78 @@ new #[Title('Sobre')] class extends Component
         $this->reset('transferAmount', 'transferTo');
     }
 
+    public function startEditingMovement(int $id): void
+    {
+        $movement = $this->requireEnvelope()->movements()->findOrFail($id);
+
+        // Las transferencias no se editan (son un par vinculado con conversión):
+        // se eliminan enteras y se rehacen.
+        if ($movement->transfer_group !== null) {
+            return;
+        }
+
+        $this->editingMovementId = $movement->id;
+        $this->editMovementAmount = rtrim(rtrim((string) $movement->amount, '0'), '.');
+        $this->editMovementDate = $movement->moved_on->format('Y-m-d');
+        $this->editMovementNote = (string) $movement->note;
+        $this->resetValidation();
+    }
+
+    public function updateMovement(): void
+    {
+        $envelope = $this->requireEnvelope();
+        $movement = $envelope->movements()->findOrFail($this->editingMovementId);
+
+        if ($movement->transfer_group !== null) {
+            return;
+        }
+
+        $this->validate([
+            'editMovementAmount' => ['required', 'numeric', 'gt:0'],
+            'editMovementDate' => ['required', 'date', 'before_or_equal:today'],
+            'editMovementNote' => ['nullable', 'string', 'max:255'],
+        ], [
+            'editMovementAmount.required' => 'Me falta el monto.',
+            'editMovementAmount.numeric' => 'El monto tiene que ser un número.',
+            'editMovementAmount.gt' => 'El monto tiene que ser mayor a cero.',
+            'editMovementDate.required' => 'Me falta la fecha.',
+            'editMovementDate.date' => 'Esa fecha no me cierra.',
+            'editMovementDate.before_or_equal' => 'Los movimientos se anotan cuando ya pasaron.',
+        ]);
+
+        // El saldo nunca puede quedar negativo por un movimiento (solo los gastos
+        // pueden dejarlo en rojo). Calculo el saldo sin este movimiento y verifico
+        // que el nuevo monto no lo perfore.
+        $current = (float) $movement->amount;
+        $sign = $movement->isEntrada() ? 1 : -1;
+        $balanceWithout = $envelope->balance() - $sign * $current;
+        $nuevo = (float) $this->editMovementAmount;
+
+        if ($balanceWithout + $sign * $nuevo < 0) {
+            if ($movement->isEntrada()) {
+                $this->addError('editMovementAmount', 'Con ese aporte el sobre queda en rojo. Tenés que aportar al menos '.$this->plata(-$balanceWithout, $envelope->currency).'.');
+            } else {
+                $this->addError('editMovementAmount', 'Sin este retiro en el sobre hay '.$this->plata($balanceWithout, $envelope->currency).'; no podés sacar más que eso.');
+            }
+
+            return;
+        }
+
+        $movement->update([
+            'amount' => $this->editMovementAmount,
+            'moved_on' => $this->editMovementDate,
+            'note' => trim($this->editMovementNote) === '' ? null : trim($this->editMovementNote),
+        ]);
+
+        $this->cancelEditMovement();
+    }
+
+    public function cancelEditMovement(): void
+    {
+        $this->reset('editingMovementId', 'editMovementAmount', 'editMovementDate', 'editMovementNote');
+        $this->resetValidation();
+    }
+
     public function deleteMovement(int $id): void
     {
         $movement = $this->requireEnvelope()->movements()->findOrFail($id);
@@ -182,6 +263,10 @@ new #[Title('Sobre')] class extends Component
                 ->delete();
         } else {
             $movement->delete();
+        }
+
+        if ($this->editingMovementId === $id) {
+            $this->cancelEditMovement();
         }
     }
 
@@ -236,6 +321,8 @@ new #[Title('Sobre')] class extends Component
                 'note' => $movement->note,
                 'amount' => (float) $movement->amount,
                 'entrada' => $movement->isEntrada(),
+                // Las transferencias no se editan sueltas: son un par vinculado.
+                'editable' => $movement->transfer_group === null,
             ]);
 
         $gastos = $this->envelope->expenses()->get()
@@ -248,6 +335,7 @@ new #[Title('Sobre')] class extends Component
                 'note' => $expense->category,
                 'amount' => (float) $expense->amount,
                 'entrada' => false,
+                'editable' => false,
             ]);
 
         return $movimientos->concat($gastos)
@@ -458,31 +546,104 @@ new #[Title('Sobre')] class extends Component
         @else
             <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
                 @foreach ($this->timeline as $item)
-                    <li wire:key="{{ $item['key'] }}" class="flex items-center gap-2 py-1">
-                        <div class="min-w-0 flex-1 py-2">
-                            <p class="break-words">{{ $item['label'] }}</p>
-                            <p class="text-sm text-cuero/60">
-                                {{ $item['date']->format('d/m/Y') }}@if ($item['note']) · {{ $item['note'] }}@endif
-                            </p>
-                        </div>
-                        <span class="shrink-0 font-medium {{ $item['entrada'] ? 'text-yerba' : '' }}">
-                            {{ $item['entrada'] ? '+' : '−' }}{{ $this->plata($item['amount'], $this->envelope->currency) }}
-                        </span>
-                        @if ($item['kind'] === 'movimiento')
-                            <button
-                                type="button"
-                                wire:click="deleteMovement({{ $item['id'] }})"
-                                wire:confirm="Vas a eliminar este movimiento{{ $item['label'] === 'Transferencia recibida' || $item['label'] === 'Transferencia enviada' ? ' y su contraparte en el otro sobre' : '' }}. Esto no se puede deshacer."
-                                aria-label="Eliminar movimiento: {{ $item['label'] }} del {{ $item['date']->format('d/m/Y') }}"
-                                class="grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja"
-                            >
-                                {{-- Heroicon: trash (outline) --}}
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                </svg>
-                            </button>
+                    <li wire:key="{{ $item['key'] }}" class="py-1">
+                        @if ($item['editable'] && $this->editingMovementId === $item['id'])
+                            <form wire:submit="updateMovement" class="space-y-2 py-2">
+                                <p class="text-sm font-medium">Editando {{ Str::lower($item['label']) }}</p>
+                                <div class="flex gap-2">
+                                    <div class="flex-1">
+                                        <label for="editMovementAmount" class="sr-only">Monto ({{ $this->envelope->currency }})</label>
+                                        <input
+                                            id="editMovementAmount"
+                                            type="text"
+                                            inputmode="decimal"
+                                            wire:model="editMovementAmount"
+                                            autocomplete="off"
+                                            class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label for="editMovementDate" class="sr-only">Fecha</label>
+                                        <input
+                                            id="editMovementDate"
+                                            type="date"
+                                            wire:model="editMovementDate"
+                                            class="min-h-11 rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                                        >
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="editMovementNote" class="sr-only">Nota</label>
+                                    <input
+                                        id="editMovementNote"
+                                        type="text"
+                                        wire:model="editMovementNote"
+                                        placeholder="Nota (opcional)"
+                                        autocomplete="off"
+                                        class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                                    >
+                                </div>
+                                @error('editMovementAmount')
+                                    <p class="text-sm text-teja" role="alert">{{ $message }}</p>
+                                @enderror
+                                @error('editMovementDate')
+                                    <p class="text-sm text-teja" role="alert">{{ $message }}</p>
+                                @enderror
+                                <div class="flex gap-2">
+                                    <button
+                                        type="submit"
+                                        class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte"
+                                    >
+                                        Guardar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        wire:click="cancelEditMovement"
+                                        class="min-h-11 rounded-sm px-3 text-cuero/70 hover:text-cuero"
+                                    >Cancelar</button>
+                                </div>
+                            </form>
                         @else
-                            <span class="size-11 shrink-0" aria-hidden="true"></span>
+                            <div class="flex items-center gap-2">
+                                <div class="min-w-0 flex-1 py-2">
+                                    <p class="break-words">{{ $item['label'] }}</p>
+                                    <p class="text-sm text-cuero/60">
+                                        {{ $item['date']->format('d/m/Y') }}@if ($item['note']) · {{ $item['note'] }}@endif
+                                    </p>
+                                </div>
+                                <span class="shrink-0 font-medium {{ $item['entrada'] ? 'text-yerba' : '' }}">
+                                    {{ $item['entrada'] ? '+' : '−' }}{{ $this->plata($item['amount'], $this->envelope->currency) }}
+                                </span>
+                                @if ($item['editable'])
+                                    <button
+                                        type="button"
+                                        wire:click="startEditingMovement({{ $item['id'] }})"
+                                        aria-label="Editar movimiento: {{ $item['label'] }} del {{ $item['date']->format('d/m/Y') }}"
+                                        class="grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-oliva focus-visible:outline-2 focus-visible:outline-oliva"
+                                    >
+                                        {{-- Heroicon: pencil-square (outline) --}}
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                        </svg>
+                                    </button>
+                                @endif
+                                @if ($item['kind'] === 'movimiento')
+                                    <button
+                                        type="button"
+                                        wire:click="deleteMovement({{ $item['id'] }})"
+                                        wire:confirm="Vas a eliminar este movimiento{{ $item['label'] === 'Transferencia recibida' || $item['label'] === 'Transferencia enviada' ? ' y su contraparte en el otro sobre' : '' }}. Esto no se puede deshacer."
+                                        aria-label="Eliminar movimiento: {{ $item['label'] }} del {{ $item['date']->format('d/m/Y') }}"
+                                        class="grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja"
+                                    >
+                                        {{-- Heroicon: trash (outline) --}}
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                @else
+                                    <span class="size-11 shrink-0" aria-hidden="true"></span>
+                                @endif
+                            </div>
                         @endif
                     </li>
                 @endforeach

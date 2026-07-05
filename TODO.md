@@ -11,17 +11,12 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 ## Auto (`/auto`)
 
 - **Alta de un segundo auto propio desde la interfaz.** El modelo y el selector ya contemplan varios autos; falta el botón de alta (hoy el formulario aparece solo cuando no hay ningún auto accesible).
-- **Edición de ítems de mantenimiento, realizaciones y cargas ya guardadas.** Hoy todo es eliminar-y-recrear, y las realizaciones ni siquiera se eliminan sueltas.
-- **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos solo se ven al entrar al módulo.
-- **Documentación del vehículo (seguro, VTV, patente) como vencimientos.**
+- **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (mantenimientos y documentación) solo se ven al entrar al módulo.
 
 ## Plata (`/plata`)
 
 - **Más monedas además de ARS y USD.**
-- **Edición de gastos y movimientos.** Hoy se eliminan y se vuelven a cargar.
 
 ## Tareas (`/tareas`)
 
 - **Proyectos, etiquetas, fechas de vencimiento y prioridades.** Hoy es GTD mínimo: una sola lista por usuario.
-- **Edición del título de una tarea existente.** Hoy se elimina y se vuelve a crear.
-- **Archivado o limpieza de completadas.** Hoy las completadas no se archivan solas.

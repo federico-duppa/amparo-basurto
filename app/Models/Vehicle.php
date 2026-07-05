@@ -93,4 +93,14 @@ class Vehicle extends Model
     {
         return $this->hasMany(FuelLog::class);
     }
+
+    /**
+     * Documentación con vencimiento (seguro, VTV, patente…).
+     *
+     * @return HasMany<VehicleDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(VehicleDocument::class);
+    }
 }

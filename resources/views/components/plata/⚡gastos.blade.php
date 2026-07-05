@@ -23,6 +23,9 @@ new #[Title('Plata')] class extends Component
 
     public string $envelopeId = '';
 
+    // Edición de un gasto ya cargado (null = estamos agregando uno nuevo).
+    public ?int $editingId = null;
+
     public function mount(): void
     {
         $this->spentOn = now()->format('Y-m-d');
@@ -60,19 +63,10 @@ new #[Title('Plata')] class extends Component
     {
         $this->validate();
 
-        $envelope = null;
+        $envelope = $this->resolveEnvelope();
 
-        if ($this->envelopeId !== '') {
-            // Los gastos solo se imputan contra sobres de gasto previsto propios.
-            $envelope = auth()->user()->envelopes()
-                ->where('kind', Envelope::KIND_GASTO)
-                ->findOrFail((int) $this->envelopeId);
-
-            if ($envelope->currency !== $this->currency) {
-                $this->addError('envelopeId', 'Ese sobre está en '.$envelope->currency.' y el gasto en '.$this->currency.'. Anotalo en la moneda del sobre, o dejalo suelto.');
-
-                return;
-            }
+        if ($envelope === false) {
+            return;
         }
 
         $date = Carbon::parse($this->spentOn);
@@ -92,9 +86,87 @@ new #[Title('Plata')] class extends Component
         $this->reset('description', 'amount', 'envelopeId');
     }
 
+    public function startEditing(int $id): void
+    {
+        $expense = auth()->user()->expenses()->findOrFail($id);
+
+        $this->editingId = $expense->id;
+        $this->description = $expense->description;
+        $this->category = $expense->category;
+        $this->amount = rtrim(rtrim((string) $expense->amount, '0'), '.');
+        $this->currency = $expense->currency;
+        $this->spentOn = $expense->spent_on->format('Y-m-d');
+        $this->envelopeId = $expense->envelope_id === null ? '' : (string) $expense->envelope_id;
+        $this->resetValidation();
+    }
+
+    public function update(): void
+    {
+        $expense = auth()->user()->expenses()->findOrFail($this->editingId);
+
+        $this->validate();
+
+        $envelope = $this->resolveEnvelope();
+
+        if ($envelope === false) {
+            return;
+        }
+
+        $date = Carbon::parse($this->spentOn);
+        $rate = $this->currency === 'ARS' ? null : MarketData::rate('blue', $date);
+
+        $expense->update([
+            'envelope_id' => $envelope?->id,
+            'description' => trim($this->description),
+            'category' => trim($this->category),
+            'amount' => $this->amount,
+            'currency' => $this->currency,
+            'spent_on' => $date->toDateString(),
+            'rate_ars' => $rate,
+            'rate_source' => $rate === null ? null : 'blue',
+        ]);
+
+        $this->cancelEdit();
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->reset('editingId', 'description', 'amount', 'envelopeId');
+        $this->spentOn = now()->format('Y-m-d');
+        $this->resetValidation();
+    }
+
+    /**
+     * Resuelve el sobre elegido (o null si es suelto). Devuelve false —y deja
+     * un error en el formulario— si el sobre no está en la misma moneda.
+     */
+    private function resolveEnvelope(): Envelope|false|null
+    {
+        if ($this->envelopeId === '') {
+            return null;
+        }
+
+        // Los gastos solo se imputan contra sobres de gasto previsto propios.
+        $envelope = auth()->user()->envelopes()
+            ->where('kind', Envelope::KIND_GASTO)
+            ->findOrFail((int) $this->envelopeId);
+
+        if ($envelope->currency !== $this->currency) {
+            $this->addError('envelopeId', 'Ese sobre está en '.$envelope->currency.' y el gasto en '.$this->currency.'. Anotalo en la moneda del sobre, o dejalo suelto.');
+
+            return false;
+        }
+
+        return $envelope;
+    }
+
     public function delete(int $id): void
     {
         auth()->user()->expenses()->findOrFail($id)->delete();
+
+        if ($this->editingId === $id) {
+            $this->cancelEdit();
+        }
     }
 
     #[Computed]
@@ -170,7 +242,13 @@ new #[Title('Plata')] class extends Component
         >Reportes</a>
     </nav>
 
-    <form wire:submit="add" class="space-y-3">
+    <form wire:submit="{{ $editingId ? 'update' : 'add' }}" class="space-y-3">
+        @if ($editingId)
+            <div class="flex items-center gap-2 rounded-sm bg-oliva/10 px-3 py-2 text-sm text-oliva" role="status">
+                <span class="font-medium">Estás editando un gasto.</span>
+                <button type="button" wire:click="cancelEdit" class="ml-auto font-medium underline hover:no-underline">Cancelar</button>
+            </div>
+        @endif
         <div class="flex gap-2">
             <div class="flex-1">
                 <label for="amount" class="sr-only">Monto</label>
@@ -275,7 +353,7 @@ new #[Title('Plata')] class extends Component
             wire:loading.attr="disabled"
             class="min-h-11 w-full rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60"
         >
-            Anotar gasto
+            {{ $editingId ? 'Guardar cambios' : 'Anotar gasto' }}
         </button>
     </form>
 
@@ -300,7 +378,19 @@ new #[Title('Plata')] class extends Component
                             {{ $gasto->spent_on->format('d/m/Y') }} · {{ $gasto->category }}@if ($gasto->envelope) · Sobre: {{ $gasto->envelope->name }}@endif
                         </p>
                     </div>
-                    <span class="shrink-0 font-medium">{{ $this->plata($gasto->amount, $gasto->currency) }}</span>
+                    <span class="shrink-0 font-medium {{ $editingId === $gasto->id ? 'text-oliva' : '' }}">{{ $this->plata($gasto->amount, $gasto->currency) }}</span>
+                    <button
+                        type="button"
+                        wire:click="startEditing({{ $gasto->id }})"
+                        aria-label="Editar gasto: {{ $gasto->description }}"
+                        @if ($editingId === $gasto->id) aria-current="true" @endif
+                        class="grid size-11 shrink-0 place-items-center focus-visible:outline-2 focus-visible:outline-oliva {{ $editingId === $gasto->id ? 'text-oliva' : 'text-cuero/60 hover:text-oliva' }}"
+                    >
+                        {{-- Heroicon: pencil-square (outline) --}}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                        </svg>
+                    </button>
                     <button
                         type="button"
                         wire:click="delete({{ $gasto->id }})"

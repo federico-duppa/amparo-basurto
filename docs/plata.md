@@ -58,6 +58,11 @@ En ambos casos el gasto cuenta igual en los reportes. Las categorías son texto 
 - **Si cambia la moneda**, convierte a la cotización blue del día y la deja registrada en el movimiento. Sin cotización disponible, la transferencia entre monedas no se hace.
 - **La indexación se congela en el pase:** al salir de un sobre indexado, la plata sale del mundo indexado en su valor nominal. El destino no arrastra indexación. Es lo correcto: el poder de compra importaba mientras juntabas, no mientras gastás.
 
+## Edición
+
+- **Gastos:** desde la lista, el lápiz de cada gasto lo carga en el formulario de arriba para corregir cualquier campo (descripción, categoría, monto, moneda, fecha, sobre imputado). Al guardar se recalcula la cotización congelada igual que al anotarlo: si queda en dólares, se vuelve a tomar el snapshot blue de la fecha; si pasa a pesos, se borra. Un cartel avisa que estás editando y se puede cancelar.
+- **Movimientos** (aportes y retiros) se editan en línea desde la historia del sobre: monto, fecha y nota. La edición nunca puede dejar el saldo en rojo (subir un retiro más allá de lo disponible, o bajar un aporte por debajo de lo ya gastado/retirado, se rechaza con un aviso). Las **transferencias no se editan**: son un par vinculado con conversión, así que se eliminan enteras y se rehacen.
+
 ## Eliminaciones
 
 - **Movimientos** (aportes/retiros) se eliminan individualmente, con confirmación; el saldo se recalcula solo.
