@@ -9,6 +9,7 @@ Acá vive la descripción funcional de cada módulo de Amparo Basurto: qué hace
 | Tareas | `/tareas` | [tareas.md](tareas.md) |
 | Auto | `/auto` | [auto.md](auto.md) |
 | Salud | `/salud` | [salud.md](salud.md) |
+| Compras | `/compras` | [compras.md](compras.md) |
 | Plata | `/plata` | [plata.md](plata.md) |
 
 ## Base común a toda la app

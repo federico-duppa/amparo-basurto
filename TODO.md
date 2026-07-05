@@ -24,6 +24,12 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Índice compuesto de vencimientos en `health_reminders` y `health_vaccines`.** Las tablas solo traen los índices de FK. `health_measurements` ya trae `(health_record_id, type, measured_on)` y `vehicle_documents` (el par de Auto) con `(vehicle_id, expires_on)`, pero el `(health_record_id, expires_on)` equivalente para recordatorios y vacunas quedó afuera de la migración de índices. Agregarlo por consistencia y para no depender de scans a medida que crece la historia.
 - **`latestByType()` hace una query por tipo de medición.** `salud.mediciones` recorre `HealthMeasurement::TYPES` (peso, presión, glucemia, temperatura…) y dispara un `SELECT ... LIMIT 1` por cada tipo en cada render del panel. Resolverlo con una sola query agrupada (último registro por tipo) en vez de N consultas.
 
+## Compras (`/compras`)
+
+- **Cantidades por ítem.** Hoy se anota la cosa, no "2 de leche". Sumar una cantidad/unidad opcional sin volver pesado el gesto de anotar.
+- **Pasarle la lista a otra persona (transferir dueño).** Como en Auto, para que una lista compartida no quede huérfana si el dueño deja de usar la app. Hoy solo se comparte y se deja de compartir.
+- **Ordenar las cosas a mano o por sector.** Hoy la lista va alfabética; para el recorrido del súper conviene poder agrupar por góndola o reordenar.
+
 ## Plata (`/plata`)
 
 - **Más monedas además de ARS y USD.**

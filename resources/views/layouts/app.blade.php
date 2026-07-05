@@ -70,6 +70,20 @@
                         </li>
                         <li class="lg:w-full">
                             <a
+                                href="{{ route('compras') }}"
+                                wire:navigate
+                                @if (request()->routeIs('compras')) aria-current="page" @endif
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('compras') ? 'text-cobre lg:bg-cobre/10' : 'text-cuero/70 hover:text-cuero' }}"
+                            >
+                                {{-- Heroicon: shopping-cart (outline) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                                </svg>
+                                <span class="text-xs font-medium lg:text-sm">Compras</span>
+                            </a>
+                        </li>
+                        <li class="lg:w-full">
+                            <a
                                 href="{{ route('plata.gastos') }}"
                                 wire:navigate
                                 @if (request()->routeIs('plata.*')) aria-current="page" @endif

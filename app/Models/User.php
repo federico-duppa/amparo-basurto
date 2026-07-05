@@ -176,6 +176,51 @@ class User extends Authenticatable
     }
 
     /**
+     * Listas de compras de las que este usuario es dueño.
+     *
+     * @return HasMany<ShoppingList, $this>
+     */
+    public function shoppingLists(): HasMany
+    {
+        return $this->hasMany(ShoppingList::class);
+    }
+
+    /**
+     * Listas de compras que otras personas compartieron con este usuario.
+     *
+     * @return BelongsToMany<ShoppingList, $this>
+     */
+    public function sharedShoppingLists(): BelongsToMany
+    {
+        return $this->belongsToMany(ShoppingList::class, 'shopping_list_user')->withTimestamps();
+    }
+
+    /**
+     * Listas de compras a las que el usuario tiene acceso: las propias más las
+     * compartidas. Se usa como relación de scoping (findOrFail sobre lo ajeno
+     * responde 404).
+     *
+     * @return Builder<ShoppingList>
+     */
+    public function accessibleShoppingLists(): Builder
+    {
+        return ShoppingList::query()->where(fn (Builder $query) => $query
+            ->where('shopping_lists.user_id', $this->id)
+            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+    }
+
+    /**
+     * Frecuentes del usuario: su repertorio personal de cosas que suele
+     * comprar, para sumarlas a cualquiera de sus listas con un toque.
+     *
+     * @return HasMany<FrequentItem, $this>
+     */
+    public function frequentItems(): HasMany
+    {
+        return $this->hasMany(FrequentItem::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
