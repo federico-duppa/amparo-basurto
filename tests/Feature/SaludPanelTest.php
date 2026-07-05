@@ -34,7 +34,7 @@ class SaludPanelTest extends TestCase
     public function test_muestra_el_estado_vacio_con_la_voz_de_amparo(): void
     {
         $this->get('/salud')
-            ->assertSee('Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar o de un paciente: contame de quién es y empezamos.');
+            ->assertSee('Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar, de un paciente o de tu mascota: contame de quién es y empezamos.');
     }
 
     public function test_puede_crear_una_historia(): void
@@ -49,6 +49,64 @@ class SaludPanelTest extends TestCase
             'user_id' => $this->user->id,
             'titular' => 'Rosa Basurto',
         ]);
+    }
+
+    public function test_puede_crear_una_historia_de_mascota(): void
+    {
+        Livewire::test('salud.panel')
+            ->set('newTipo', 'mascota')
+            ->set('newTitular', 'Firulais')
+            ->call('createRecord')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('health_records', [
+            'user_id' => $this->user->id,
+            'tipo' => 'mascota',
+            'titular' => 'Firulais',
+        ]);
+    }
+
+    public function test_un_documento_no_guarda_fecha_de_nacimiento(): void
+    {
+        Livewire::test('salud.panel')
+            ->set('newTipo', 'documento')
+            ->set('newTitular', 'Ficha modelo')
+            ->set('newNacimiento', '1990-01-01')
+            ->call('createRecord')
+            ->assertHasNoErrors();
+
+        $record = HealthRecord::where('titular', 'Ficha modelo')->firstOrFail();
+        $this->assertSame('documento', $record->tipo);
+        $this->assertNull($record->nacimiento);
+    }
+
+    public function test_el_tipo_de_historia_tiene_que_ser_valido(): void
+    {
+        Livewire::test('salud.panel')
+            ->set('newTipo', 'planta')
+            ->set('newTitular', 'Cactus')
+            ->call('createRecord')
+            ->assertHasErrors('newTipo');
+
+        $this->assertDatabaseCount('health_records', 0);
+    }
+
+    public function test_la_ficha_de_una_mascota_guarda_especie_raza_y_veterinaria(): void
+    {
+        $record = HealthRecord::factory()->for($this->user)->mascota()->create();
+
+        Livewire::test('salud.panel')
+            ->call('startEditingFicha')
+            ->set('fichaEspecie', 'Perro')
+            ->set('fichaRaza', 'Labrador')
+            ->set('fichaObraSocial', 'Veterinaria del barrio')
+            ->call('saveFicha')
+            ->assertHasNoErrors();
+
+        $record->refresh();
+        $this->assertSame('Perro', $record->especie);
+        $this->assertSame('Labrador', $record->raza);
+        $this->assertSame('Veterinaria del barrio', $record->obra_social);
     }
 
     public function test_el_titular_es_obligatorio(): void

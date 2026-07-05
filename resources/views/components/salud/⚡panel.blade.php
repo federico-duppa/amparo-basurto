@@ -19,16 +19,20 @@ new #[Title('Salud')] class extends Component
 
     // Alta de una historia clínica.
     public bool $addingRecord = false;
+    public string $newTipo = 'persona';
     public string $newTitular = '';
     public string $newNacimiento = '';
 
     // Edición del titular (solo el dueño).
     public bool $editingRecord = false;
+    public string $editTipo = 'persona';
     public string $editTitular = '';
     public string $editNacimiento = '';
 
     // Edición de la ficha médica (cualquiera con acceso).
     public bool $editingFicha = false;
+    public string $fichaEspecie = '';
+    public string $fichaRaza = '';
     public string $fichaGrupo = '';
     public string $fichaObraSocial = '';
     public string $fichaAlergias = '';
@@ -70,6 +74,7 @@ new #[Title('Salud')] class extends Component
     public function createRecord(): void
     {
         $data = $this->validate([
+            'newTipo' => ['required', Rule::in(array_keys(HealthRecord::TIPOS))],
             'newTitular' => ['required', 'string', 'max:80'],
             'newNacimiento' => ['nullable', 'date', 'before_or_equal:today'],
         ], [
@@ -77,12 +82,16 @@ new #[Title('Salud')] class extends Component
             'newNacimiento.before_or_equal' => 'Esa fecha de nacimiento todavía no llegó.',
         ]);
 
+        // Un documento no tiene fecha de nacimiento: si quedó cargada, la ignoro.
+        $nacimiento = $data['newTipo'] === 'documento' ? null : ($data['newNacimiento'] ?: null);
+
         $record = auth()->user()->healthRecords()->create([
+            'tipo' => $data['newTipo'],
             'titular' => trim($data['newTitular']),
-            'nacimiento' => $data['newNacimiento'] ?: null,
+            'nacimiento' => $nacimiento,
         ]);
 
-        $this->reset('newTitular', 'newNacimiento', 'addingRecord');
+        $this->reset('newTipo', 'newTitular', 'newNacimiento', 'addingRecord');
         $this->recordId = $record->id;
     }
 
@@ -98,6 +107,7 @@ new #[Title('Salud')] class extends Component
     {
         $record = $this->requireOwnedRecord();
 
+        $this->editTipo = $record->tipo;
         $this->editTitular = $record->titular;
         $this->editNacimiento = $record->nacimiento?->format('Y-m-d') ?? '';
         $this->editingRecord = true;
@@ -109,6 +119,7 @@ new #[Title('Salud')] class extends Component
         $record = $this->requireOwnedRecord();
 
         $data = $this->validate([
+            'editTipo' => ['required', Rule::in(array_keys(HealthRecord::TIPOS))],
             'editTitular' => ['required', 'string', 'max:80'],
             'editNacimiento' => ['nullable', 'date', 'before_or_equal:today'],
         ], [
@@ -116,9 +127,12 @@ new #[Title('Salud')] class extends Component
             'editNacimiento.before_or_equal' => 'Esa fecha de nacimiento todavía no llegó.',
         ]);
 
+        $nacimiento = $data['editTipo'] === 'documento' ? null : ($data['editNacimiento'] ?: null);
+
         $record->update([
+            'tipo' => $data['editTipo'],
             'titular' => trim($data['editTitular']),
-            'nacimiento' => $data['editNacimiento'] ?: null,
+            'nacimiento' => $nacimiento,
         ]);
 
         $this->editingRecord = false;
@@ -140,6 +154,8 @@ new #[Title('Salud')] class extends Component
     {
         $record = $this->requireRecord();
 
+        $this->fichaEspecie = (string) $record->especie;
+        $this->fichaRaza = (string) $record->raza;
         $this->fichaGrupo = (string) $record->grupo_sanguineo;
         $this->fichaObraSocial = (string) $record->obra_social;
         $this->fichaAlergias = (string) $record->alergias;
@@ -154,6 +170,8 @@ new #[Title('Salud')] class extends Component
         $record = $this->requireRecord();
 
         $data = $this->validate([
+            'fichaEspecie' => ['nullable', 'string', 'max:60'],
+            'fichaRaza' => ['nullable', 'string', 'max:60'],
             'fichaGrupo' => ['nullable', 'string', 'max:10'],
             'fichaObraSocial' => ['nullable', 'string', 'max:120'],
             'fichaAlergias' => ['nullable', 'string', 'max:1000'],
@@ -161,9 +179,19 @@ new #[Title('Salud')] class extends Component
             'fichaMedicacion' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        // Cada tipo edita solo los campos que le corresponden; los demás no se
+        // muestran en el formulario y conservan su valor (para una persona,
+        // especie y raza quedan en null; para un documento, no hay cobertura).
+        $especie = $record->esMascota() ? (trim($data['fichaEspecie'] ?? '') ?: null) : $record->especie;
+        $raza = $record->esMascota() ? (trim($data['fichaRaza'] ?? '') ?: null) : $record->raza;
+        $grupo = $record->esPersona() ? (trim($data['fichaGrupo'] ?? '') ?: null) : $record->grupo_sanguineo;
+        $obraSocial = $record->esDocumento() ? $record->obra_social : (trim($data['fichaObraSocial'] ?? '') ?: null);
+
         $record->update([
-            'grupo_sanguineo' => trim($data['fichaGrupo'] ?? '') ?: null,
-            'obra_social' => trim($data['fichaObraSocial'] ?? '') ?: null,
+            'especie' => $especie,
+            'raza' => $raza,
+            'grupo_sanguineo' => $grupo,
+            'obra_social' => $obraSocial,
             'alergias' => trim($data['fichaAlergias'] ?? '') ?: null,
             'condiciones' => trim($data['fichaCondiciones'] ?? '') ?: null,
             'medicacion' => trim($data['fichaMedicacion'] ?? '') ?: null,
@@ -418,24 +446,40 @@ new #[Title('Salud')] class extends Component
         @if (! $this->record)
             {{-- Sin historias todavía --}}
             <p class="rounded-sm border border-cuero/20 px-4 py-6 text-center text-cuero/70">
-                Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar o de un paciente: contame de quién es y empezamos.
+                Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar, de un paciente o de tu mascota: contame de quién es y empezamos.
             </p>
         @endif
 
+        @php($nombreLabel = match ($newTipo) { 'mascota' => '¿Cómo se llama?', 'documento' => '¿Qué documento es?', default => '¿De quién es?' })
+        @php($nombrePlaceholder = match ($newTipo) { 'mascota' => 'Nombre de la mascota', 'documento' => 'Nombre o referencia', default => 'Nombre y apellido' })
         <form wire:submit="createRecord" class="space-y-3 rounded-sm border border-cuero/20 p-4">
             <h2 class="font-brand text-lg font-bold">Nueva historia clínica</h2>
 
+            <fieldset>
+                <legend class="mb-1 block text-sm font-medium">¿De quién es la historia?</legend>
+                <div class="flex gap-2" role="radiogroup">
+                    @foreach (\App\Models\HealthRecord::TIPOS as $value => $label)
+                        <label class="flex-1">
+                            <input type="radio" wire:model.live="newTipo" value="{{ $value }}" class="peer sr-only">
+                            <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 text-sm text-cuero/70 hover:text-cuero peer-checked:border-ciruela peer-checked:bg-ciruela/10 peer-checked:font-semibold peer-checked:text-ciruela peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">{{ $label }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </fieldset>
+
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label for="newTitular" class="mb-1 block text-sm font-medium">¿De quién es?</label>
+                    <label for="newTitular" class="mb-1 block text-sm font-medium">{{ $nombreLabel }}</label>
                     <input id="newTitular" type="text" wire:model="newTitular" autocomplete="off"
-                        placeholder="Nombre y apellido"
+                        placeholder="{{ $nombrePlaceholder }}"
                         class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                     @error('newTitular') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                 </div>
-                <div>
-                    <x-ui.date-field model="newNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
-                </div>
+                @unless ($newTipo === 'documento')
+                    <div>
+                        <x-ui.date-field model="newNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
+                    </div>
+                @endunless
             </div>
 
             <div class="flex gap-2">
@@ -474,18 +518,32 @@ new #[Title('Salud')] class extends Component
         {{-- Titular --}}
         <div class="rounded-sm border border-cuero/20 p-4">
             @if ($this->editingRecord)
+                @php($editNombreLabel = match ($editTipo) { 'mascota' => '¿Cómo se llama?', 'documento' => '¿Qué documento es?', default => '¿De quién es?' })
                 <form wire:submit="saveRecord" class="space-y-3">
                     <h2 class="font-brand text-lg font-bold">Editar titular</h2>
+                    <fieldset>
+                        <legend class="mb-1 block text-sm font-medium">¿De quién es la historia?</legend>
+                        <div class="flex gap-2" role="radiogroup">
+                            @foreach (\App\Models\HealthRecord::TIPOS as $value => $label)
+                                <label class="flex-1">
+                                    <input type="radio" wire:model.live="editTipo" value="{{ $value }}" class="peer sr-only">
+                                    <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 text-sm text-cuero/70 hover:text-cuero peer-checked:border-ciruela peer-checked:bg-ciruela/10 peer-checked:font-semibold peer-checked:text-ciruela peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">{{ $label }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
-                            <label for="editTitular" class="mb-1 block text-sm font-medium">¿De quién es?</label>
+                            <label for="editTitular" class="mb-1 block text-sm font-medium">{{ $editNombreLabel }}</label>
                             <input id="editTitular" type="text" wire:model="editTitular" autocomplete="off"
                                 class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                             @error('editTitular') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         </div>
-                        <div>
-                            <x-ui.date-field model="editNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
-                        </div>
+                        @unless ($editTipo === 'documento')
+                            <div>
+                                <x-ui.date-field model="editNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
+                            </div>
+                        @endunless
                     </div>
                     <div class="flex gap-2">
                         <button type="submit"
@@ -500,7 +558,15 @@ new #[Title('Salud')] class extends Component
                 <div class="flex items-start gap-3">
                     <div class="min-w-0 flex-1">
                         <h2 class="font-brand text-2xl font-bold leading-tight">{{ $record->titular }}</h2>
-                        @if ($record->nacimiento)
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <span class="inline-block rounded-sm border border-cuero/30 px-2 py-0.5 text-xs font-medium text-cuero/70">
+                                {{ \App\Models\HealthRecord::TIPOS[$record->tipo] ?? 'Persona' }}
+                            </span>
+                            @if ($record->esMascota() && ($record->especie || $record->raza))
+                                <span class="text-xs text-cuero/60">{{ trim($record->especie.' · '.$record->raza, ' ·') }}</span>
+                            @endif
+                        </div>
+                        @if ($record->nacimiento && ! $record->esDocumento())
                             <p class="mt-1 text-sm text-cuero/70">
                                 Nació el {{ $record->nacimiento->format('d/m/Y') }}
                                 @if ($record->edad() !== null)
@@ -541,22 +607,48 @@ new #[Title('Salud')] class extends Component
             @if ($this->editingFicha)
                 <form wire:submit="saveFicha" class="space-y-3">
                     <h2 class="font-brand text-lg font-bold">Editar ficha</h2>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <label for="fichaGrupo" class="mb-1 block text-sm font-medium">Grupo sanguíneo</label>
-                            <input id="fichaGrupo" type="text" wire:model="fichaGrupo" autocomplete="off"
-                                placeholder="0+"
-                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                            @error('fichaGrupo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    @if ($record->esMascota())
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label for="fichaEspecie" class="mb-1 block text-sm font-medium">Especie</label>
+                                <input id="fichaEspecie" type="text" wire:model="fichaEspecie" autocomplete="off"
+                                    placeholder="Perro, gato…"
+                                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                @error('fichaEspecie') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label for="fichaRaza" class="mb-1 block text-sm font-medium">Raza</label>
+                                <input id="fichaRaza" type="text" wire:model="fichaRaza" autocomplete="off"
+                                    placeholder="Mestizo, labrador…"
+                                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                @error('fichaRaza') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            </div>
                         </div>
                         <div>
-                            <label for="fichaObraSocial" class="mb-1 block text-sm font-medium">Obra social / prepaga</label>
+                            <label for="fichaObraSocial" class="mb-1 block text-sm font-medium">Veterinaria</label>
                             <input id="fichaObraSocial" type="text" wire:model="fichaObraSocial" autocomplete="off"
-                                placeholder="Nombre y n° de afiliado"
+                                placeholder="Nombre y datos de contacto"
                                 class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                             @error('fichaObraSocial') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         </div>
-                    </div>
+                    @elseif ($record->esPersona())
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label for="fichaGrupo" class="mb-1 block text-sm font-medium">Grupo sanguíneo</label>
+                                <input id="fichaGrupo" type="text" wire:model="fichaGrupo" autocomplete="off"
+                                    placeholder="0+"
+                                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                @error('fichaGrupo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label for="fichaObraSocial" class="mb-1 block text-sm font-medium">Obra social / prepaga</label>
+                                <input id="fichaObraSocial" type="text" wire:model="fichaObraSocial" autocomplete="off"
+                                    placeholder="Nombre y n° de afiliado"
+                                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                @error('fichaObraSocial') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                    @endif
                     <div>
                         <label for="fichaAlergias" class="mb-1 block text-sm font-medium">Alergias</label>
                         <textarea id="fichaAlergias" wire:model="fichaAlergias" rows="2"
@@ -597,16 +689,33 @@ new #[Title('Salud')] class extends Component
                 </div>
 
                 <dl class="mt-3 space-y-3">
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <dt class="text-sm text-cuero/60">Grupo sanguíneo</dt>
-                            <dd class="font-medium">{{ $record->grupo_sanguineo ?? '—' }}</dd>
+                    @if ($record->esMascota())
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <dt class="text-sm text-cuero/60">Especie</dt>
+                                <dd class="font-medium">{{ $record->especie ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-sm text-cuero/60">Raza</dt>
+                                <dd class="font-medium">{{ $record->raza ?? '—' }}</dd>
+                            </div>
                         </div>
                         <div>
-                            <dt class="text-sm text-cuero/60">Obra social / prepaga</dt>
+                            <dt class="text-sm text-cuero/60">Veterinaria</dt>
                             <dd class="font-medium">{{ $record->obra_social ?? '—' }}</dd>
                         </div>
-                    </div>
+                    @elseif ($record->esPersona())
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <dt class="text-sm text-cuero/60">Grupo sanguíneo</dt>
+                                <dd class="font-medium">{{ $record->grupo_sanguineo ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-sm text-cuero/60">Obra social / prepaga</dt>
+                                <dd class="font-medium">{{ $record->obra_social ?? '—' }}</dd>
+                            </div>
+                        </div>
+                    @endif
                     <div>
                         <dt class="text-sm text-cuero/60">Alergias</dt>
                         <dd class="mt-0.5">

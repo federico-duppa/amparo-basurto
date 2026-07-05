@@ -38,7 +38,7 @@ class AutoPanelTest extends TestCase
     public function test_muestra_el_estado_vacio_con_la_voz_de_amparo(): void
     {
         $this->get('/auto')
-            ->assertSee('Todavía no cargaste ningún auto. Contame cuál es y empezamos a llevarle la cuenta.');
+            ->assertSee('Todavía no cargaste ningún vehículo. Contame si es un auto o una moto y empezamos a llevarle la cuenta.');
     }
 
     public function test_puede_crear_un_auto(): void
@@ -71,6 +71,41 @@ class AutoPanelTest extends TestCase
         $this->assertDatabaseHas('maintenance_items', ['name' => 'Cambio de aceite', 'user_id' => $this->user->id]);
         $this->assertDatabaseHas('maintenance_items', ['name' => 'Cambio de bujías']);
         $this->assertDatabaseHas('maintenance_items', ['name' => 'Correa de distribución']);
+    }
+
+    public function test_puede_crear_una_moto_con_sus_mantenimientos(): void
+    {
+        Livewire::test('auto.panel')
+            ->set('newTipo', 'moto')
+            ->set('newMarca', 'Honda')
+            ->set('newModelo', 'Tornado')
+            ->set('newKilometraje', 5000)
+            ->call('createVehicle')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('vehicles', [
+            'user_id' => $this->user->id,
+            'tipo' => 'moto',
+            'marca' => 'Honda',
+            'modelo' => 'Tornado',
+        ]);
+
+        // La moto arranca con sus propios presets, no con los del auto.
+        $this->assertDatabaseHas('maintenance_items', ['name' => 'Kit de arrastre', 'user_id' => $this->user->id]);
+        $this->assertDatabaseMissing('maintenance_items', ['name' => 'Correa de distribución', 'user_id' => $this->user->id]);
+    }
+
+    public function test_el_tipo_de_vehiculo_tiene_que_ser_valido(): void
+    {
+        Livewire::test('auto.panel')
+            ->set('newTipo', 'camion')
+            ->set('newMarca', 'Ford')
+            ->set('newModelo', 'F100')
+            ->set('newKilometraje', 1000)
+            ->call('createVehicle')
+            ->assertHasErrors('newTipo');
+
+        $this->assertDatabaseCount('vehicles', 0);
     }
 
     public function test_la_marca_y_el_modelo_son_obligatorios(): void
@@ -1137,7 +1172,7 @@ class AutoPanelTest extends TestCase
         Vehicle::factory()->for($this->user)->create(['marca' => 'Fiat', 'modelo' => 'Uno']);
 
         $component = Livewire::test('auto.panel')
-            ->assertSee('+ Otro auto')
+            ->assertSee('+ Otro vehículo')
             ->call('startAddingVehicle')
             ->set('newMarca', 'Peugeot')
             ->set('newModelo', '208')

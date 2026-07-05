@@ -14,9 +14,19 @@ class HealthRecord extends Model
     /** @use HasFactory<HealthRecordFactory> */
     use HasFactory;
 
+    /** Tipos de titular, con su etiqueta para la interfaz. */
+    public const TIPOS = [
+        'persona' => 'Persona',
+        'mascota' => 'Mascota',
+        'documento' => 'Documento',
+    ];
+
     protected $fillable = [
+        'tipo',
         'titular',
         'nacimiento',
+        'especie',
+        'raza',
         'grupo_sanguineo',
         'obra_social',
         'alergias',
@@ -36,11 +46,41 @@ class HealthRecord extends Model
         return $this->user_id === $user->id;
     }
 
+    public function esPersona(): bool
+    {
+        return $this->tipo === 'persona';
+    }
+
+    public function esMascota(): bool
+    {
+        return $this->tipo === 'mascota';
+    }
+
+    public function esDocumento(): bool
+    {
+        return $this->tipo === 'documento';
+    }
+
+    /** Etiqueta del campo "nombre" del titular, según el tipo de historia. */
+    public function titularLabel(): string
+    {
+        return match ($this->tipo) {
+            'mascota' => 'Nombre de la mascota',
+            'documento' => 'Nombre del documento',
+            default => 'Titular',
+        };
+    }
+
     /**
-     * Edad del titular en años, si conocemos su nacimiento.
+     * Edad del titular en años, si conocemos su nacimiento. Aplica a personas y
+     * mascotas; un documento no tiene edad.
      */
     public function edad(): ?int
     {
+        if ($this->esDocumento()) {
+            return null;
+        }
+
         return $this->nacimiento?->age;
     }
 

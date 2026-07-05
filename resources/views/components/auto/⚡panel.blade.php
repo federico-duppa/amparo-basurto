@@ -5,6 +5,7 @@ use App\Models\Vehicle;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -25,6 +26,7 @@ new #[Title('Auto')] class extends Component
 
     // Alta de auto (con autos ya cargados el formulario se abre a pedido).
     public bool $addingVehicle = false;
+    public string $newTipo = 'auto';
     public string $newMarca = '';
     public string $newModelo = '';
     public string $newPatente = '';
@@ -32,6 +34,7 @@ new #[Title('Auto')] class extends Component
 
     // Edición de los datos del auto (solo el dueño).
     public bool $editingVehicle = false;
+    public string $editTipo = 'auto';
     public string $editMarca = '';
     public string $editModelo = '';
     public string $editPatente = '';
@@ -119,49 +122,47 @@ new #[Title('Auto')] class extends Component
 
     public function startAddingVehicle(): void
     {
-        $this->reset('newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->addingVehicle = true;
         $this->resetValidation();
     }
 
     public function cancelAddVehicle(): void
     {
-        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('addingVehicle', 'newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->resetValidation();
     }
 
     public function createVehicle(): void
     {
         $data = $this->validate([
+            'newTipo' => ['required', Rule::in(array_keys(Vehicle::TIPOS))],
             'newMarca' => ['required', 'string', 'max:60'],
             'newModelo' => ['required', 'string', 'max:60'],
             'newPatente' => ['nullable', 'string', 'max:12'],
             'newKilometraje' => ['required', 'integer', 'min:0', 'max:9999999'],
         ], [
-            'newMarca.required' => 'Contame la marca del auto.',
+            'newMarca.required' => 'Contame la marca.',
             'newModelo.required' => '¿Qué modelo es?',
             'newKilometraje.required' => 'Necesito el kilometraje para llevarte la cuenta.',
             'newKilometraje.integer' => 'El kilometraje va en números, sin puntos ni letras.',
         ]);
 
         $vehicle = auth()->user()->vehicles()->create([
+            'tipo' => $data['newTipo'],
             'marca' => trim($data['newMarca']),
             'modelo' => trim($data['newModelo']),
             'patente' => $data['newPatente'] ? strtoupper(trim($data['newPatente'])) : null,
             'kilometraje' => $data['newKilometraje'],
         ]);
 
-        // Le dejo cargados los mantenimientos más comunes para que arranque con algo.
-        // Son sugerencias: los podés editar o borrar.
-        foreach ([
-            ['name' => 'Cambio de aceite', 'interval_km' => 10000, 'interval_months' => 12],
-            ['name' => 'Cambio de bujías', 'interval_km' => 40000, 'interval_months' => null],
-            ['name' => 'Correa de distribución', 'interval_km' => 60000, 'interval_months' => 60],
-        ] as $preset) {
+        // Le dejo cargados los mantenimientos más comunes del tipo para que
+        // arranque con algo. Son sugerencias: los podés editar o borrar.
+        foreach ($vehicle->presets() as $preset) {
             $this->makeItem($vehicle, $preset['name'], $preset['interval_km'], $preset['interval_months']);
         }
 
-        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('addingVehicle', 'newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->vehicleId = $vehicle->id;
         $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
     }
@@ -178,6 +179,7 @@ new #[Title('Auto')] class extends Component
     {
         $vehicle = $this->requireOwnedVehicle();
 
+        $this->editTipo = $vehicle->tipo;
         $this->editMarca = $vehicle->marca;
         $this->editModelo = $vehicle->modelo;
         $this->editPatente = (string) $vehicle->patente;
@@ -190,15 +192,17 @@ new #[Title('Auto')] class extends Component
         $vehicle = $this->requireOwnedVehicle();
 
         $data = $this->validate([
+            'editTipo' => ['required', Rule::in(array_keys(Vehicle::TIPOS))],
             'editMarca' => ['required', 'string', 'max:60'],
             'editModelo' => ['required', 'string', 'max:60'],
             'editPatente' => ['nullable', 'string', 'max:12'],
         ], [
-            'editMarca.required' => 'Contame la marca del auto.',
+            'editMarca.required' => 'Contame la marca.',
             'editModelo.required' => '¿Qué modelo es?',
         ]);
 
         $vehicle->update([
+            'tipo' => $data['editTipo'],
             'marca' => trim($data['editMarca']),
             'modelo' => trim($data['editModelo']),
             'patente' => $data['editPatente'] ? strtoupper(trim($data['editPatente'])) : null,
@@ -261,7 +265,7 @@ new #[Title('Auto')] class extends Component
         }
 
         if ($vehicle->isOwnedBy($user)) {
-            $this->addError('shareUsername', 'Ese auto ya es tuyo.');
+            $this->addError('shareUsername', 'Ese vehículo ya es tuyo.');
 
             return;
         }
@@ -510,7 +514,7 @@ new #[Title('Auto')] class extends Component
             'fuelCost' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ], [
             'fuelDate.required' => '¿Qué día cargaste?',
-            'fuelMileage.required' => 'Anotá cuánto marcaba el auto al cargar.',
+            'fuelMileage.required' => 'Anotá cuánto marcaba el tablero al cargar.',
         ]);
 
         $log = $vehicle->fuelLogs()->make([
@@ -551,7 +555,7 @@ new #[Title('Auto')] class extends Component
             'editFuelCost' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ], [
             'editFuelDate.required' => '¿Qué día cargaste?',
-            'editFuelMileage.required' => 'Anotá cuánto marcaba el auto al cargar.',
+            'editFuelMileage.required' => 'Anotá cuánto marcaba el tablero al cargar.',
         ]);
 
         $log->update([
@@ -1002,29 +1006,44 @@ new #[Title('Auto')] class extends Component
     </header>
 
     @if (! $this->vehicle)
-        {{-- Sin auto todavía --}}
+        {{-- Sin vehículo todavía --}}
         <p class="rounded-sm border border-cuero/20 px-4 py-6 text-center text-cuero/70">
-            Todavía no cargaste ningún auto. Contame cuál es y empezamos a llevarle la cuenta.
+            Todavía no cargaste ningún vehículo. Contame si es un auto o una moto y empezamos a llevarle la cuenta.
         </p>
     @endif
 
     @if (! $this->vehicle || $this->addingVehicle)
-        {{-- Alta: el primer auto, o uno más --}}
+        {{-- Alta: el primer vehículo, o uno más --}}
+        @php($esNuevaMoto = $newTipo === 'moto')
         <form wire:submit="createVehicle" class="space-y-3 rounded-sm border border-cuero/20 p-4">
-            <h2 class="font-brand text-lg font-bold">{{ $this->vehicle ? 'Otro auto' : 'Tu auto' }}</h2>
+            <h2 class="font-brand text-lg font-bold">
+                {{ $this->vehicle ? ($esNuevaMoto ? 'Otra moto' : 'Otro auto') : ($esNuevaMoto ? 'Tu moto' : 'Tu auto') }}
+            </h2>
+
+            <fieldset>
+                <legend class="mb-1 block text-sm font-medium">¿Qué es?</legend>
+                <div class="flex gap-2" role="radiogroup">
+                    @foreach (\App\Models\Vehicle::TIPOS as $value => $label)
+                        <label class="flex-1">
+                            <input type="radio" wire:model.live="newTipo" value="{{ $value }}" class="peer sr-only">
+                            <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 text-sm text-cuero/70 hover:text-cuero peer-checked:border-grafito peer-checked:bg-grafito/10 peer-checked:font-semibold peer-checked:text-grafito peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-grafito">{{ $label }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </fieldset>
 
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
                     <label for="newMarca" class="mb-1 block text-sm font-medium">Marca</label>
                     <input id="newMarca" type="text" wire:model="newMarca" autocomplete="off"
-                        placeholder="Volkswagen"
+                        placeholder="{{ $esNuevaMoto ? 'Honda' : 'Volkswagen' }}"
                         class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                     @error('newMarca') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="newModelo" class="mb-1 block text-sm font-medium">Modelo</label>
                     <input id="newModelo" type="text" wire:model="newModelo" autocomplete="off"
-                        placeholder="Gol Trend"
+                        placeholder="{{ $esNuevaMoto ? 'Tornado' : 'Gol Trend' }}"
                         class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                     @error('newModelo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                 </div>
@@ -1047,7 +1066,7 @@ new #[Title('Auto')] class extends Component
             <div class="flex flex-wrap gap-2">
                 <button type="submit" wire:loading.attr="disabled"
                     class="min-h-11 w-full rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60 sm:w-auto">
-                    Guardar auto
+                    {{ $esNuevaMoto ? 'Guardar moto' : 'Guardar auto' }}
                 </button>
                 @if ($this->vehicle)
                     <button type="button" wire:click="cancelAddVehicle"
@@ -1062,7 +1081,7 @@ new #[Title('Auto')] class extends Component
 
         {{-- Selector cuando hay más de un auto, con el alta de otro a mano --}}
         @if ($this->vehicles->count() > 1 || ! $this->addingVehicle)
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Tus autos">
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Tus vehículos">
                 @if ($this->vehicles->count() > 1)
                     @foreach ($this->vehicles as $v)
                         <button type="button" wire:click="selectVehicle({{ $v->id }})"
@@ -1075,7 +1094,7 @@ new #[Title('Auto')] class extends Component
                 @unless ($this->addingVehicle)
                     <button type="button" wire:click="startAddingVehicle"
                         class="min-h-11 rounded-sm border border-dashed border-cuero/40 px-3 text-sm font-medium text-cuero/80 hover:text-cuero focus-visible:outline-2 focus-visible:outline-grafito">
-                        + Otro auto
+                        + Otro vehículo
                     </button>
                 @endunless
             </div>
@@ -1085,7 +1104,18 @@ new #[Title('Auto')] class extends Component
         <div class="rounded-sm border border-cuero/20 p-4">
             @if ($this->editingVehicle)
                 <form wire:submit="saveVehicle" class="space-y-3">
-                    <h2 class="font-brand text-lg font-bold">Editar auto</h2>
+                    <h2 class="font-brand text-lg font-bold">{{ $editTipo === 'moto' ? 'Editar moto' : 'Editar auto' }}</h2>
+                    <fieldset>
+                        <legend class="mb-1 block text-sm font-medium">¿Qué es?</legend>
+                        <div class="flex gap-2" role="radiogroup">
+                            @foreach (\App\Models\Vehicle::TIPOS as $value => $label)
+                                <label class="flex-1">
+                                    <input type="radio" wire:model.live="editTipo" value="{{ $value }}" class="peer sr-only">
+                                    <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 text-sm text-cuero/70 hover:text-cuero peer-checked:border-grafito peer-checked:bg-grafito/10 peer-checked:font-semibold peer-checked:text-grafito peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-grafito">{{ $label }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
                             <label for="editMarca" class="mb-1 block text-sm font-medium">Marca</label>
@@ -1119,18 +1149,23 @@ new #[Title('Auto')] class extends Component
                 <div class="flex items-start gap-3">
                     <div class="min-w-0 flex-1">
                         <h2 class="font-brand text-2xl font-bold leading-tight">{{ $vehicle->nombre() }}</h2>
-                        @if ($vehicle->patente)
-                            <span class="mt-1 inline-block rounded-sm bg-ocre px-2 py-0.5 text-xs font-semibold tracking-wide text-negro">
-                                {{ $vehicle->patente }}
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <span class="inline-block rounded-sm border border-cuero/30 px-2 py-0.5 text-xs font-medium text-cuero/70">
+                                {{ \App\Models\Vehicle::TIPOS[$vehicle->tipo] ?? 'Auto' }}
                             </span>
-                        @endif
+                            @if ($vehicle->patente)
+                                <span class="inline-block rounded-sm bg-ocre px-2 py-0.5 text-xs font-semibold tracking-wide text-negro">
+                                    {{ $vehicle->patente }}
+                                </span>
+                            @endif
+                        </div>
                         @unless ($this->isOwner)
                             <p class="mt-1 text-xs text-cuero/60">Compartido por {{ $vehicle->user->name }}</p>
                         @endunless
                     </div>
                     @if ($this->isOwner)
                         <div class="flex shrink-0 items-center">
-                            <button type="button" wire:click="startEditingVehicle" aria-label="Editar auto"
+                            <button type="button" wire:click="startEditingVehicle" aria-label="Editar {{ $vehicle->sustantivo() }}"
                                 class="grid size-11 place-items-center text-cuero/60 hover:text-cuero focus-visible:outline-2 focus-visible:outline-grafito">
                                 {{-- Heroicon: pencil-square (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
@@ -1138,8 +1173,8 @@ new #[Title('Auto')] class extends Component
                                 </svg>
                             </button>
                             <button type="button" wire:click="deleteVehicle({{ $vehicle->id }})"
-                                wire:confirm="Vas a eliminar este auto y todo su historial de mantenimientos y cargas. Esto no se puede deshacer."
-                                aria-label="Eliminar auto"
+                                wire:confirm="Vas a eliminar {{ $vehicle->esMoto() ? 'esta moto' : 'este auto' }} y todo su historial de mantenimientos y cargas. Esto no se puede deshacer."
+                                aria-label="Eliminar {{ $vehicle->sustantivo() }}"
                                 class="grid size-11 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -1186,7 +1221,7 @@ new #[Title('Auto')] class extends Component
             <div class="space-y-3 rounded-sm border border-cuero/20 p-4">
                 <div>
                     <h2 class="font-brand text-lg font-bold">Compartir</h2>
-                    <p class="text-sm text-cuero/60">Sumá a otra persona con su usuario y verá este auto con todos sus gastos y mantenimientos.</p>
+                    <p class="text-sm text-cuero/60">Sumá a otra persona con su usuario y verá este vehículo con todos sus gastos y mantenimientos.</p>
                 </div>
 
                 @if ($this->members->isNotEmpty())
@@ -1198,13 +1233,13 @@ new #[Title('Auto')] class extends Component
                                     <p class="text-xs text-cuero/50">{{ '@'.$member->username }}</p>
                                 </div>
                                 <button type="button" wire:click="transferOwnership({{ $member->id }})"
-                                    wire:confirm="Vas a pasarle este auto a {{ $member->name }}: va a ser quien pueda editarlo, eliminarlo y compartirlo. Vos lo vas a seguir viendo como compartido."
-                                    aria-label="Hacer que {{ $member->name }} sea quien tenga el auto a su nombre"
+                                    wire:confirm="Vas a pasarle este vehículo a {{ $member->name }}: va a ser quien pueda editarlo, eliminarlo y compartirlo. Vos lo vas a seguir viendo como compartido."
+                                    aria-label="Hacer que {{ $member->name }} sea quien tenga el vehículo a su nombre"
                                     class="min-h-11 shrink-0 rounded-sm px-3 text-sm text-cuero/70 hover:text-grafito focus-visible:outline-2 focus-visible:outline-grafito">
                                     Hacer dueño
                                 </button>
                                 <button type="button" wire:click="unshare({{ $member->id }})"
-                                    wire:confirm="Vas a dejar de compartir el auto con {{ $member->name }}. Ya no va a poder verlo."
+                                    wire:confirm="Vas a dejar de compartir el vehículo con {{ $member->name }}. Ya no va a poder verlo."
                                     aria-label="Dejar de compartir con {{ $member->name }}"
                                     class="min-h-11 shrink-0 rounded-sm px-3 text-sm text-cuero/70 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
                                     Quitar
@@ -1855,7 +1890,7 @@ new #[Title('Auto')] class extends Component
             <div class="space-y-3">
                 <div>
                     <h2 class="font-brand text-lg font-bold">Gastos</h2>
-                    <p class="text-sm text-cuero/60">Cuánto se llevó el auto en cada período, entre mantenimiento y combustible.</p>
+                    <p class="text-sm text-cuero/60">Cuánto se llevó el vehículo en cada período, entre mantenimiento y combustible.</p>
                 </div>
 
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Agrupar los gastos">
