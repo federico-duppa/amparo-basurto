@@ -7,6 +7,7 @@ use App\Models\MaintenanceItem;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleDocument;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -315,6 +316,255 @@ class AutoPanelTest extends TestCase
         $this->assertModelMissing($item);
         $this->assertModelMissing($record);
         $this->assertModelMissing($fuel);
+    }
+
+    // --- Editar mantenimientos, realizaciones y cargas --------------------
+
+    public function test_puede_editar_un_item_de_mantenimiento(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create([
+            'name' => 'Cambio de aceite',
+            'interval_km' => 10000,
+            'interval_months' => 12,
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startEditingItem', $item->id)
+            ->assertSet('editItemName', 'Cambio de aceite')
+            ->set('editItemName', 'Aceite y filtro')
+            ->set('editItemIntervalKm', 15000)
+            ->set('editItemIntervalMonths', null)
+            ->call('saveItem')
+            ->assertHasNoErrors()
+            ->assertSet('editingItemId', null);
+
+        $item->refresh();
+        $this->assertSame('Aceite y filtro', $item->name);
+        $this->assertSame(15000, $item->interval_km);
+        $this->assertNull($item->interval_months);
+    }
+
+    public function test_el_nombre_del_item_editado_es_obligatorio(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startEditingItem', $item->id)
+            ->set('editItemName', '')
+            ->call('saveItem')
+            ->assertHasErrors(['editItemName' => 'required']);
+    }
+
+    public function test_puede_editar_una_realizacion(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['kilometraje' => 40000]);
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+        $record = MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create([
+            'performed_on' => '2026-01-01',
+            'mileage' => 40000,
+            'cost' => 20000,
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('toggleHistory', $item->id)
+            ->call('startEditingRecord', $record->id)
+            ->assertSet('editingRecordId', $record->id)
+            ->set('editRecordDate', '2026-02-15')
+            ->set('editRecordMileage', 43000)
+            ->set('editRecordCost', '25500')
+            ->call('saveRecord')
+            ->assertHasNoErrors()
+            ->assertSet('editingRecordId', null);
+
+        $record->refresh();
+        $this->assertSame('2026-02-15', $record->performed_on->format('Y-m-d'));
+        $this->assertSame(43000, $record->mileage);
+        $this->assertSame('25500.00', $record->cost);
+
+        // Editar hacia un km mayor adelanta el kilometraje del auto.
+        $this->assertSame(43000, $vehicle->fresh()->kilometraje);
+    }
+
+    public function test_puede_eliminar_una_realizacion_suelta(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $item = MaintenanceItem::factory()->for($this->user)->for($vehicle)->create();
+        $record = MaintenanceRecord::factory()->for($this->user)->for($vehicle)->for($item, 'item')->create();
+
+        Livewire::test('auto.panel')->call('deleteRecord', $record->id);
+
+        $this->assertModelMissing($record);
+    }
+
+    public function test_no_puede_editar_realizaciones_de_autos_ajenos(): void
+    {
+        $ajeno = Vehicle::factory()->create();
+        $item = MaintenanceItem::factory()->for($ajeno->user)->for($ajeno)->create();
+        $record = MaintenanceRecord::factory()->for($ajeno->user)->for($ajeno)->for($item, 'item')->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $ajeno->id)
+            ->call('startEditingRecord', $record->id);
+    }
+
+    public function test_puede_editar_una_carga_de_combustible(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create(['kilometraje' => 40000]);
+        $log = FuelLog::factory()->for($this->user)->for($vehicle)->create([
+            'filled_on' => '2026-01-01',
+            'mileage' => 40000,
+            'cost' => 28000,
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startEditingFuel', $log->id)
+            ->assertSet('editingFuelId', $log->id)
+            ->set('editFuelDate', '2026-02-01')
+            ->set('editFuelMileage', 41200)
+            ->set('editFuelCost', '31000')
+            ->call('saveFuelEdit')
+            ->assertHasNoErrors()
+            ->assertSet('editingFuelId', null);
+
+        $log->refresh();
+        $this->assertSame('2026-02-01', $log->filled_on->format('Y-m-d'));
+        $this->assertSame(41200, $log->mileage);
+        $this->assertSame('31000.00', $log->cost);
+        $this->assertSame(41200, $vehicle->fresh()->kilometraje);
+    }
+
+    public function test_el_kilometraje_de_la_carga_editada_es_obligatorio(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $log = FuelLog::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startEditingFuel', $log->id)
+            ->set('editFuelMileage', null)
+            ->call('saveFuelEdit')
+            ->assertHasErrors(['editFuelMileage' => 'required']);
+    }
+
+    public function test_quien_recibe_el_auto_compartido_puede_editar_una_carga(): void
+    {
+        $owner = User::factory()->create();
+        $vehicle = Vehicle::factory()->for($owner)->create(['kilometraje' => 20000]);
+        $log = FuelLog::factory()->for($owner)->for($vehicle)->create(['mileage' => 20000]);
+        $vehicle->members()->attach($this->user);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $vehicle->id)
+            ->call('startEditingFuel', $log->id)
+            ->set('editFuelMileage', 20800)
+            ->call('saveFuelEdit')
+            ->assertHasNoErrors();
+
+        $this->assertSame(20800, $log->fresh()->mileage);
+    }
+
+    // --- Documentación ----------------------------------------------------
+
+    public function test_puede_cargar_un_documento_con_vencimiento(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+
+        Livewire::test('auto.panel')
+            ->set('addingDocument', true)
+            ->set('docName', 'Seguro')
+            ->set('docExpiresOn', '2026-12-31')
+            ->set('docNote', 'La Segunda')
+            ->call('addDocument')
+            ->assertHasNoErrors()
+            ->assertSet('addingDocument', false);
+
+        $this->assertDatabaseHas('vehicle_documents', [
+            'vehicle_id' => $vehicle->id,
+            'user_id' => $this->user->id,
+            'name' => 'Seguro',
+            'note' => 'La Segunda',
+        ]);
+    }
+
+    public function test_el_nombre_y_el_vencimiento_del_documento_son_obligatorios(): void
+    {
+        Vehicle::factory()->for($this->user)->create();
+
+        Livewire::test('auto.panel')
+            ->set('addingDocument', true)
+            ->set('docName', '')
+            ->set('docExpiresOn', '')
+            ->call('addDocument')
+            ->assertHasErrors(['docName' => 'required', 'docExpiresOn' => 'required']);
+    }
+
+    public function test_calcula_el_estado_del_documento(): void
+    {
+        $vencido = VehicleDocument::factory()->create(['expires_on' => now()->subDay()->toDateString()]);
+        $porVencer = VehicleDocument::factory()->create(['expires_on' => now()->addDays(10)->toDateString()]);
+        $alDia = VehicleDocument::factory()->create(['expires_on' => now()->addMonths(6)->toDateString()]);
+
+        $this->assertSame('overdue', $vencido->status()['level']);
+        $this->assertSame('soon', $porVencer->status()['level']);
+        $this->assertSame('ok', $alDia->status()['level']);
+    }
+
+    public function test_puede_editar_un_documento(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create([
+            'name' => 'VTV',
+            'expires_on' => '2026-06-01',
+        ]);
+
+        Livewire::test('auto.panel')
+            ->call('startEditingDocument', $doc->id)
+            ->assertSet('editDocName', 'VTV')
+            ->set('editDocName', 'VTV nueva')
+            ->set('editDocExpiresOn', '2027-06-01')
+            ->call('saveDocument')
+            ->assertHasNoErrors()
+            ->assertSet('editingDocumentId', null);
+
+        $doc->refresh();
+        $this->assertSame('VTV nueva', $doc->name);
+        $this->assertSame('2027-06-01', $doc->expires_on->format('Y-m-d'));
+    }
+
+    public function test_puede_eliminar_un_documento(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')->call('deleteDocument', $doc->id);
+
+        $this->assertModelMissing($doc);
+    }
+
+    public function test_no_puede_cargar_documentos_en_autos_ajenos(): void
+    {
+        $ajeno = Vehicle::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('auto.panel')
+            ->set('vehicleId', $ajeno->id)
+            ->set('docName', 'Seguro')
+            ->set('docExpiresOn', '2026-12-31')
+            ->call('addDocument');
+    }
+
+    public function test_al_eliminar_un_auto_se_borran_sus_documentos(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+        $doc = VehicleDocument::factory()->for($this->user)->for($vehicle)->create();
+
+        Livewire::test('auto.panel')->call('deleteVehicle', $vehicle->id);
+
+        $this->assertModelMissing($doc);
     }
 
     // --- Editar auto ------------------------------------------------------

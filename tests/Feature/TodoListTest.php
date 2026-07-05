@@ -94,6 +94,76 @@ class TodoListTest extends TestCase
         $this->assertModelMissing($todo);
     }
 
+    public function test_puede_editar_el_titulo_de_una_tarea(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create(['title' => 'Comprar yerba']);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->assertSet('editTitle', 'Comprar yerba')
+            ->set('editTitle', '  Comprar café  ')
+            ->call('saveEdit')
+            ->assertHasNoErrors()
+            ->assertSet('editingId', null);
+
+        $this->assertSame('Comprar café', $todo->fresh()->title);
+    }
+
+    public function test_el_titulo_editado_es_obligatorio(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create(['title' => 'Algo']);
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->set('editTitle', '')
+            ->call('saveEdit')
+            ->assertHasErrors(['editTitle' => 'required']);
+
+        $this->assertSame('Algo', $todo->fresh()->title);
+    }
+
+    public function test_el_titulo_editado_no_puede_superar_255_caracteres(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create();
+
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->set('editTitle', str_repeat('a', 256))
+            ->call('saveEdit')
+            ->assertHasErrors(['editTitle' => 'max']);
+    }
+
+    public function test_no_puede_editar_tareas_ajenas(): void
+    {
+        $ajena = Todo::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('todo.todo-list')->call('startEditing', $ajena->id);
+    }
+
+    public function test_puede_limpiar_las_completadas(): void
+    {
+        $completa = Todo::factory()->for($this->user)->completed()->create();
+        $pendiente = Todo::factory()->for($this->user)->create();
+
+        Livewire::test('todo.todo-list')->call('clearCompleted');
+
+        $this->assertModelMissing($completa);
+        $this->assertModelExists($pendiente);
+    }
+
+    public function test_limpiar_completadas_no_toca_las_de_otros(): void
+    {
+        $ajenaCompleta = Todo::factory()->completed()->create();
+        $propiaCompleta = Todo::factory()->for($this->user)->completed()->create();
+
+        Livewire::test('todo.todo-list')->call('clearCompleted');
+
+        $this->assertModelExists($ajenaCompleta);
+        $this->assertModelMissing($propiaCompleta);
+    }
+
     public function test_las_pendientes_se_listan_antes_que_las_completadas(): void
     {
         Todo::factory()->for($this->user)->completed()->create(['title' => 'Tarea completada']);

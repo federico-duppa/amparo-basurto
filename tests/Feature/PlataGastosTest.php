@@ -241,4 +241,79 @@ class PlataGastosTest extends TestCase
             ->assertSee('Gasto propio')
             ->assertDontSee('Gasto de otra persona');
     }
+
+    public function test_puede_editar_un_gasto(): void
+    {
+        $gasto = Expense::factory()->for($this->user)->create([
+            'description' => 'Verdulería',
+            'category' => 'Comida',
+            'amount' => '5000.00',
+            'currency' => 'ARS',
+            'spent_on' => now()->subDay(),
+        ]);
+
+        Livewire::test('plata.gastos')
+            ->call('startEditing', $gasto->id)
+            ->assertSet('editingId', $gasto->id)
+            ->assertSet('description', 'Verdulería')
+            ->assertSet('category', 'Comida')
+            ->set('description', 'Carnicería')
+            ->set('amount', '8200')
+            ->call('update')
+            ->assertHasNoErrors()
+            ->assertSet('editingId', null);
+
+        $gasto->refresh();
+        $this->assertSame('Carnicería', $gasto->description);
+        $this->assertSame('8200.00', $gasto->amount);
+    }
+
+    public function test_al_editar_un_gasto_a_dolares_recalcula_la_cotizacion(): void
+    {
+        ExchangeRate::create([
+            'rate_type' => 'blue',
+            'quoted_on' => now()->toDateString(),
+            'sell' => 1000,
+        ]);
+
+        $gasto = Expense::factory()->for($this->user)->create([
+            'currency' => 'ARS',
+            'rate_ars' => null,
+            'spent_on' => now(),
+        ]);
+
+        Livewire::test('plata.gastos')
+            ->call('startEditing', $gasto->id)
+            ->set('amount', '50')
+            ->set('currency', 'USD')
+            ->set('spentOn', now()->format('Y-m-d'))
+            ->call('update')
+            ->assertHasNoErrors();
+
+        $gasto->refresh();
+        $this->assertSame('USD', $gasto->currency);
+        $this->assertSame('1000.0000', $gasto->rate_ars);
+        $this->assertSame('blue', $gasto->rate_source);
+    }
+
+    public function test_editar_valida_los_campos(): void
+    {
+        $gasto = Expense::factory()->for($this->user)->create();
+
+        Livewire::test('plata.gastos')
+            ->call('startEditing', $gasto->id)
+            ->set('description', '')
+            ->set('amount', '')
+            ->call('update')
+            ->assertHasErrors(['description' => 'required', 'amount' => 'required']);
+    }
+
+    public function test_no_puede_editar_gastos_ajenos(): void
+    {
+        $ajeno = Expense::factory()->create();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::test('plata.gastos')->call('startEditing', $ajeno->id);
+    }
 }
