@@ -8,6 +8,7 @@ use Database\Factories\VehicleDocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VehicleDocument extends Model
 {
@@ -21,13 +22,26 @@ class VehicleDocument extends Model
         'name',
         'expires_on',
         'note',
+        'interval_months',
     ];
 
     protected function casts(): array
     {
         return [
             'expires_on' => 'date',
+            'interval_months' => 'integer',
         ];
+    }
+
+    /**
+     * Próximo vencimiento sugerido al renovar, según la periodicidad del
+     * documento. Sin periodicidad no hay sugerencia.
+     */
+    public function suggestedNextExpiry(): ?Carbon
+    {
+        return $this->interval_months
+            ? $this->expires_on->copy()->addMonths($this->interval_months)
+            : null;
     }
 
     /**
@@ -86,5 +100,17 @@ class VehicleDocument extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Vigencias anteriores, de la más reciente a la más vieja.
+     *
+     * @return HasMany<VehicleDocumentRenewal, $this>
+     */
+    public function renewals(): HasMany
+    {
+        return $this->hasMany(VehicleDocumentRenewal::class)
+            ->orderByDesc('expires_on')
+            ->orderByDesc('id');
     }
 }

@@ -22,6 +22,9 @@ class MaintenanceItem extends Model
     /** Días de margen antes del vencimiento a partir del cual avisamos "pronto". */
     private const SOON_DAYS = 30;
 
+    /** Ritmo supuesto (km por día) cuando el auto todavía no tiene datos para deducir el real. */
+    private const FALLBACK_KM_PER_DAY = 40.0;
+
     protected $fillable = [
         'name',
         'interval_km',
@@ -41,11 +44,17 @@ class MaintenanceItem extends Model
      * y de la fecha de hoy. Devuelve el nivel (para ordenar y colorear) y los textos
      * que Amparo muestra.
      *
+     * La urgencia se mide en días: los vencimientos por km se traducen con el
+     * ritmo de uso real del auto ($kmPerDay, ver Vehicle::kmPerDay()) para que
+     * km y tiempo compitan en la misma escala; sin datos suficientes se supone
+     * {@see self::FALLBACK_KM_PER_DAY}. Con ritmo real, además, el detalle
+     * estima la fecha aproximada del vencimiento por km.
+     *
      * Niveles: 'none' (sin registro), 'ok', 'soon', 'overdue'.
      *
      * @return array{level: string, rank: int, urgency: int, headline: string, detail: string}
      */
-    public function status(int $currentKm, ?CarbonInterface $today = null): array
+    public function status(int $currentKm, ?float $kmPerDay = null, ?CarbonInterface $today = null): array
     {
         $today = $today ? Carbon::parse($today)->startOfDay() : Carbon::today();
         $last = $this->latestRecord;
@@ -67,19 +76,25 @@ class MaintenanceItem extends Model
         if ($this->interval_km) {
             $dueKm = $last->mileage + $this->interval_km;
             $remainingKm = $dueKm - $currentKm;
+            $kmInDays = (int) round($remainingKm / ($kmPerDay ?? self::FALLBACK_KM_PER_DAY));
             $levels[] = $remainingKm < 0 ? 'overdue' : ($remainingKm <= self::SOON_KM ? 'soon' : 'ok');
-            $urgency = min($urgency, $remainingKm);
+            $urgency = min($urgency, $kmInDays);
+
+            // Con ritmo real, "faltan 3.400 km" se traduce a una fecha aproximada.
+            $estimate = $kmPerDay !== null && $remainingKm >= 0
+                ? ' (aprox. el '.$today->copy()->addDays($kmInDays)->format('d/m/Y').')'
+                : '';
+
             $parts[] = $remainingKm < 0
                 ? 'te pasaste por '.self::km(abs($remainingKm))
-                : 'faltan '.self::km($remainingKm);
+                : 'faltan '.self::km($remainingKm).$estimate;
         }
 
         if ($this->interval_months) {
             $dueDate = $last->performed_on->copy()->addMonths($this->interval_months);
             $remainingDays = $today->diffInDays($dueDate, false);
             $levels[] = $remainingDays < 0 ? 'overdue' : ($remainingDays <= self::SOON_DAYS ? 'soon' : 'ok');
-            // Un día ≈ 40 km para que km y tiempo compitan en la misma escala de urgencia.
-            $urgency = min($urgency, (int) ($remainingDays * 40));
+            $urgency = min($urgency, (int) $remainingDays);
             $parts[] = ($remainingDays < 0 ? 'vencía el ' : 'el ').$dueDate->format('d/m/Y');
         }
 

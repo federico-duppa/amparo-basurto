@@ -16,6 +16,7 @@ class MaintenanceRecord extends Model
         'performed_on',
         'mileage',
         'cost',
+        'note',
     ];
 
     protected function casts(): array

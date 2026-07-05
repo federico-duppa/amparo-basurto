@@ -48,6 +48,7 @@ new #[Title('Auto')] class extends Component
     public string $logDate = '';
     public ?int $logMileage = null;
     public ?string $logCost = null;
+    public string $logNote = '';
 
     // Historial de realizaciones desplegado y edición de una realización.
     public ?int $historyItemId = null;
@@ -55,6 +56,7 @@ new #[Title('Auto')] class extends Component
     public string $editRecordDate = '';
     public ?int $editRecordMileage = null;
     public ?string $editRecordCost = null;
+    public string $editRecordNote = '';
 
     // Carga de combustible.
     public string $fuelDate = '';
@@ -72,12 +74,21 @@ new #[Title('Auto')] class extends Component
     public string $docName = '';
     public string $docExpiresOn = '';
     public string $docNote = '';
+    public ?int $docIntervalMonths = null;
 
     // Edición de un documento ya guardado.
     public ?int $editingDocumentId = null;
     public string $editDocName = '';
     public string $editDocExpiresOn = '';
     public string $editDocNote = '';
+    public ?int $editDocIntervalMonths = null;
+
+    // Renovación de un documento (conserva la vigencia anterior).
+    public ?int $renewingDocumentId = null;
+    public string $renewDocExpiresOn = '';
+
+    // Historial de vigencias anteriores desplegado.
+    public ?int $docHistoryId = null;
 
     public function mount(): void
     {
@@ -128,7 +139,7 @@ new #[Title('Auto')] class extends Component
         auth()->user()->accessibleVehicles()->findOrFail($id);
 
         $this->vehicleId = $id;
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
     }
 
     public function startEditingVehicle(): void
@@ -192,7 +203,7 @@ new #[Title('Auto')] class extends Component
         $vehicle->delete();
 
         $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'editingRecordId', 'editingFuelId', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId');
     }
 
     // --- Compartir --------------------------------------------------------
@@ -321,12 +332,13 @@ new #[Title('Auto')] class extends Component
         $this->logDate = now()->format('Y-m-d');
         $this->logMileage = $this->vehicle?->kilometraje;
         $this->logCost = null;
+        $this->logNote = '';
         $this->resetValidation();
     }
 
     public function cancelLog(): void
     {
-        $this->reset('loggingItemId', 'logMileage', 'logCost');
+        $this->reset('loggingItemId', 'logMileage', 'logCost', 'logNote');
         $this->resetValidation();
     }
 
@@ -341,6 +353,7 @@ new #[Title('Auto')] class extends Component
             'logDate' => ['required', 'date'],
             'logMileage' => ['required', 'integer', 'min:0', 'max:9999999'],
             'logCost' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'logNote' => ['nullable', 'string', 'max:255'],
         ], [
             'logDate.required' => '¿Qué día lo hiciste?',
             'logMileage.required' => 'Anotá con cuántos km lo hiciste.',
@@ -350,6 +363,7 @@ new #[Title('Auto')] class extends Component
             'performed_on' => $data['logDate'],
             'mileage' => $data['logMileage'],
             'cost' => $data['logCost'],
+            'note' => trim($this->logNote) === '' ? null : trim($this->logNote),
         ]);
         $record->user_id = auth()->id();
         $record->vehicle_id = $vehicle->id;
@@ -357,7 +371,7 @@ new #[Title('Auto')] class extends Component
 
         $vehicle->bumpMileage((int) $data['logMileage']);
 
-        $this->reset('loggingItemId', 'logMileage', 'logCost');
+        $this->reset('loggingItemId', 'logMileage', 'logCost', 'logNote');
     }
 
     // --- Realizaciones (historial) ----------------------------------------
@@ -377,6 +391,7 @@ new #[Title('Auto')] class extends Component
         $this->editRecordDate = $record->performed_on->format('Y-m-d');
         $this->editRecordMileage = $record->mileage;
         $this->editRecordCost = $record->cost === null ? null : rtrim(rtrim((string) $record->cost, '0'), '.');
+        $this->editRecordNote = (string) $record->note;
         $this->resetValidation();
     }
 
@@ -391,6 +406,7 @@ new #[Title('Auto')] class extends Component
             'editRecordDate' => ['required', 'date'],
             'editRecordMileage' => ['required', 'integer', 'min:0', 'max:9999999'],
             'editRecordCost' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'editRecordNote' => ['nullable', 'string', 'max:255'],
         ], [
             'editRecordDate.required' => '¿Qué día lo hiciste?',
             'editRecordMileage.required' => 'Anotá con cuántos km lo hiciste.',
@@ -400,6 +416,7 @@ new #[Title('Auto')] class extends Component
             'performed_on' => $data['editRecordDate'],
             'mileage' => $data['editRecordMileage'],
             'cost' => $data['editRecordCost'],
+            'note' => trim($this->editRecordNote) === '' ? null : trim($this->editRecordNote),
         ]);
 
         $vehicle->bumpMileage((int) $data['editRecordMileage']);
@@ -409,7 +426,7 @@ new #[Title('Auto')] class extends Component
 
     public function cancelEditRecord(): void
     {
-        $this->reset('editingRecordId', 'editRecordDate', 'editRecordMileage', 'editRecordCost');
+        $this->reset('editingRecordId', 'editRecordDate', 'editRecordMileage', 'editRecordCost', 'editRecordNote');
         $this->resetValidation();
     }
 
@@ -516,6 +533,7 @@ new #[Title('Auto')] class extends Component
             'docName' => ['required', 'string', 'max:60'],
             'docExpiresOn' => ['required', 'date'],
             'docNote' => ['nullable', 'string', 'max:255'],
+            'docIntervalMonths' => ['nullable', 'integer', 'min:1', 'max:600'],
         ], [
             'docName.required' => '¿Qué documento querés seguir?',
             'docExpiresOn.required' => '¿Cuándo vence?',
@@ -525,11 +543,12 @@ new #[Title('Auto')] class extends Component
             'name' => trim($data['docName']),
             'expires_on' => $data['docExpiresOn'],
             'note' => trim($this->docNote) === '' ? null : trim($this->docNote),
+            'interval_months' => $data['docIntervalMonths'],
         ]);
         $document->user_id = auth()->id();
         $document->save();
 
-        $this->reset('docName', 'docExpiresOn', 'docNote', 'addingDocument');
+        $this->reset('docName', 'docExpiresOn', 'docNote', 'docIntervalMonths', 'addingDocument');
     }
 
     public function startEditingDocument(int $id): void
@@ -540,6 +559,7 @@ new #[Title('Auto')] class extends Component
         $this->editDocName = $document->name;
         $this->editDocExpiresOn = $document->expires_on->format('Y-m-d');
         $this->editDocNote = (string) $document->note;
+        $this->editDocIntervalMonths = $document->interval_months;
         $this->resetValidation();
     }
 
@@ -551,6 +571,7 @@ new #[Title('Auto')] class extends Component
             'editDocName' => ['required', 'string', 'max:60'],
             'editDocExpiresOn' => ['required', 'date'],
             'editDocNote' => ['nullable', 'string', 'max:255'],
+            'editDocIntervalMonths' => ['nullable', 'integer', 'min:1', 'max:600'],
         ], [
             'editDocName.required' => '¿Qué documento querés seguir?',
             'editDocExpiresOn.required' => '¿Cuándo vence?',
@@ -560,6 +581,7 @@ new #[Title('Auto')] class extends Component
             'name' => trim($data['editDocName']),
             'expires_on' => $data['editDocExpiresOn'],
             'note' => trim($this->editDocNote) === '' ? null : trim($this->editDocNote),
+            'interval_months' => $data['editDocIntervalMonths'],
         ]);
 
         $this->cancelEditDocument();
@@ -567,8 +589,55 @@ new #[Title('Auto')] class extends Component
 
     public function cancelEditDocument(): void
     {
-        $this->reset('editingDocumentId', 'editDocName', 'editDocExpiresOn', 'editDocNote');
+        $this->reset('editingDocumentId', 'editDocName', 'editDocExpiresOn', 'editDocNote', 'editDocIntervalMonths');
         $this->resetValidation();
+    }
+
+    /**
+     * Renovar un documento: la vigencia que vence queda guardada como
+     * historial y el documento pasa a la fecha nueva. Si el documento tiene
+     * periodicidad, la fecha sugerida ya viene calculada.
+     */
+    public function startRenewingDocument(int $id): void
+    {
+        $document = $this->requireVehicle()->documents()->findOrFail($id);
+
+        $this->renewingDocumentId = $document->id;
+        $this->renewDocExpiresOn = $document->suggestedNextExpiry()?->format('Y-m-d') ?? '';
+        $this->resetValidation();
+    }
+
+    public function saveRenewal(): void
+    {
+        $document = $this->requireVehicle()->documents()->findOrFail($this->renewingDocumentId);
+
+        $this->validate([
+            'renewDocExpiresOn' => ['required', 'date'],
+        ], [
+            'renewDocExpiresOn.required' => '¿Hasta cuándo vale ahora?',
+        ]);
+
+        $renewal = $document->renewals()->make([
+            'expires_on' => $document->expires_on->format('Y-m-d'),
+        ]);
+        $renewal->user_id = auth()->id();
+        $renewal->save();
+
+        $document->update(['expires_on' => $this->renewDocExpiresOn]);
+
+        $this->reset('renewingDocumentId', 'renewDocExpiresOn');
+    }
+
+    public function cancelRenewal(): void
+    {
+        $this->reset('renewingDocumentId', 'renewDocExpiresOn');
+        $this->resetValidation();
+    }
+
+    public function toggleDocHistory(int $id): void
+    {
+        // Acordeón: abrir un historial cierra el que estuviera abierto.
+        $this->docHistoryId = $this->docHistoryId === $id ? null : $id;
     }
 
     public function deleteDocument(int $id): void
@@ -577,6 +646,14 @@ new #[Title('Auto')] class extends Component
 
         if ($this->editingDocumentId === $id) {
             $this->cancelEditDocument();
+        }
+
+        if ($this->renewingDocumentId === $id) {
+            $this->cancelRenewal();
+        }
+
+        if ($this->docHistoryId === $id) {
+            $this->docHistoryId = null;
         }
     }
 
@@ -645,6 +722,16 @@ new #[Title('Auto')] class extends Component
         return $this->vehicle?->members()->orderBy('name')->get() ?? collect();
     }
 
+    /**
+     * Con el auto compartido (dueño + al menos una persona más) mostramos
+     * quién anotó cada registro; en un auto de una sola persona es ruido.
+     */
+    #[Computed]
+    public function isShared(): bool
+    {
+        return $this->members->isNotEmpty();
+    }
+
     #[Computed]
     public function items(): Collection
     {
@@ -655,6 +742,7 @@ new #[Title('Auto')] class extends Component
         }
 
         $km = $vehicle->kilometraje;
+        $kmPerDay = $vehicle->kmPerDay();
 
         return $vehicle->maintenanceItems()
             ->with('latestRecord')
@@ -662,7 +750,7 @@ new #[Title('Auto')] class extends Component
             ->get()
             ->map(fn ($item) => [
                 'item' => $item,
-                'status' => $item->status($km),
+                'status' => $item->status($km, $kmPerDay),
             ])
             ->sortBy(fn ($row) => [$row['status']['rank'], $row['status']['urgency']])
             ->values();
@@ -682,7 +770,7 @@ new #[Title('Auto')] class extends Component
         $item = $this->vehicle?->maintenanceItems()->find($this->historyItemId);
 
         return $item
-            ? $item->records()->orderByDesc('performed_on')->orderByDesc('mileage')->get()
+            ? $item->records()->with('user')->orderByDesc('performed_on')->orderByDesc('mileage')->get()
             : collect();
     }
 
@@ -695,7 +783,7 @@ new #[Title('Auto')] class extends Component
             return collect();
         }
 
-        $logs = $vehicle->fuelLogs()->orderByDesc('filled_on')->orderByDesc('mileage')->get();
+        $logs = $vehicle->fuelLogs()->with('user')->orderByDesc('filled_on')->orderByDesc('mileage')->get();
 
         return $logs->map(function ($log, $index) use ($logs) {
             $previous = $logs->get($index + 1); // la carga inmediatamente anterior
@@ -719,6 +807,7 @@ new #[Title('Auto')] class extends Component
         }
 
         return $vehicle->documents()
+            ->with(['user', 'renewals.user'])
             ->get()
             ->map(fn ($document) => [
                 'doc' => $document,
@@ -1027,6 +1116,9 @@ new #[Title('Auto')] class extends Component
                                             Último: {{ $item->latestRecord->performed_on->format('d/m/Y') }}
                                             · {{ $this->km($item->latestRecord->mileage) }}@if ($item->latestRecord->cost !== null) · {{ $this->pesos($item->latestRecord->cost) }}@endif
                                         </p>
+                                        @if ($item->latestRecord->note)
+                                            <p class="mt-1 text-xs text-cuero/60">{{ $item->latestRecord->note }}</p>
+                                        @endif
                                     @endif
 
                                     <p class="mt-1 text-xs text-cuero/50">
@@ -1077,6 +1169,13 @@ new #[Title('Auto')] class extends Component
                                                 class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
                                             @error('logCost') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                         </div>
+                                    </div>
+                                    <div>
+                                        <label for="logNote-{{ $item->id }}" class="mb-1 block text-sm font-medium">Nota <span class="font-normal text-cuero/60">(opcional)</span></label>
+                                        <input id="logNote-{{ $item->id }}" type="text" wire:model="logNote" autocomplete="off"
+                                            placeholder="Taller, qué se hizo, repuestos…"
+                                            class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                        @error('logNote') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                     </div>
                                     <div class="flex gap-2">
                                         <button type="submit"
@@ -1129,6 +1228,13 @@ new #[Title('Auto')] class extends Component
                                                                 @error('editRecordCost') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                                             </div>
                                                         </div>
+                                                        <div>
+                                                            <label for="editRecordNote-{{ $record->id }}" class="mb-1 block text-sm font-medium">Nota <span class="font-normal text-cuero/60">(opcional)</span></label>
+                                                            <input id="editRecordNote-{{ $record->id }}" type="text" wire:model="editRecordNote" autocomplete="off"
+                                                                placeholder="Taller, qué se hizo, repuestos…"
+                                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                                            @error('editRecordNote') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                                        </div>
                                                         <div class="flex gap-2">
                                                             <button type="submit"
                                                                 class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte">
@@ -1140,10 +1246,18 @@ new #[Title('Auto')] class extends Component
                                                     </form>
                                                 @else
                                                     <div class="flex items-center gap-2">
-                                                        <p class="min-w-0 flex-1 text-sm">
-                                                            <span class="font-medium">{{ $record->performed_on->format('d/m/Y') }}</span>
-                                                            · {{ $this->km($record->mileage) }}@if ($record->cost !== null) · {{ $this->pesos($record->cost) }}@endif
-                                                        </p>
+                                                        <div class="min-w-0 flex-1">
+                                                            <p class="text-sm">
+                                                                <span class="font-medium">{{ $record->performed_on->format('d/m/Y') }}</span>
+                                                                · {{ $this->km($record->mileage) }}@if ($record->cost !== null) · {{ $this->pesos($record->cost) }}@endif
+                                                            </p>
+                                                            @if ($record->note)
+                                                                <p class="text-xs text-cuero/60">{{ $record->note }}</p>
+                                                            @endif
+                                                            @if ($this->isShared)
+                                                                <p class="text-xs text-cuero/50">Anotó {{ $record->user->name }}</p>
+                                                            @endif
+                                                        </div>
                                                         <button type="button" wire:click="startEditingRecord({{ $record->id }})"
                                                             aria-label="Editar realización del {{ $record->performed_on->format('d/m/Y') }}"
                                                             class="grid size-9 shrink-0 place-items-center text-cuero/50 hover:text-grafito focus-visible:outline-2 focus-visible:outline-grafito">
@@ -1235,7 +1349,7 @@ new #[Title('Auto')] class extends Component
                         <li wire:key="doc-{{ $doc->id }}" class="rounded-sm border border-cuero/20 p-3">
                             @if ($this->editingDocumentId === $doc->id)
                                 <form wire:submit="saveDocument" class="space-y-3">
-                                    <div class="grid gap-3 sm:grid-cols-2">
+                                    <div class="grid gap-3 sm:grid-cols-3">
                                         <div>
                                             <label for="editDocName-{{ $doc->id }}" class="mb-1 block text-sm font-medium">Documento</label>
                                             <input id="editDocName-{{ $doc->id }}" type="text" wire:model="editDocName" autocomplete="off" list="documentos-comunes"
@@ -1244,6 +1358,13 @@ new #[Title('Auto')] class extends Component
                                         </div>
                                         <div>
                                             <x-ui.date-field model="editDocExpiresOn" id="editDocExpiresOn-{{ $doc->id }}" label="Vence" accent="grafito" preset="vencimiento" />
+                                        </div>
+                                        <div>
+                                            <label for="editDocIntervalMonths-{{ $doc->id }}" class="mb-1 block text-sm font-medium">Se renueva cada <span class="font-normal text-cuero/60">(meses, opcional)</span></label>
+                                            <input id="editDocIntervalMonths-{{ $doc->id }}" type="number" inputmode="numeric" min="1" wire:model="editDocIntervalMonths"
+                                                placeholder="12"
+                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                                            @error('editDocIntervalMonths') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                         </div>
                                     </div>
                                     <div>
@@ -1280,6 +1401,12 @@ new #[Title('Auto')] class extends Component
                                         @if ($doc->note)
                                             <p class="mt-1 text-xs text-cuero/60">{{ $doc->note }}</p>
                                         @endif
+                                        @if ($doc->interval_months)
+                                            <p class="mt-1 text-xs text-cuero/50">Se renueva cada {{ $doc->interval_months }} {{ $doc->interval_months === 1 ? 'mes' : 'meses' }}.</p>
+                                        @endif
+                                        @if ($this->isShared)
+                                            <p class="mt-1 text-xs text-cuero/50">Anotó {{ $doc->user->name }}</p>
+                                        @endif
                                     </div>
 
                                     <div class="flex shrink-0 items-center">
@@ -1291,7 +1418,7 @@ new #[Title('Auto')] class extends Component
                                             </svg>
                                         </button>
                                         <button type="button" wire:click="deleteDocument({{ $doc->id }})"
-                                            wire:confirm="Vas a eliminar «{{ $doc->name }}». Esto no se puede deshacer."
+                                            wire:confirm="Vas a eliminar «{{ $doc->name }}»{{ $doc->renewals->isNotEmpty() ? ' y sus vigencias anteriores' : '' }}. Esto no se puede deshacer."
                                             aria-label="Eliminar {{ $doc->name }}"
                                             class="grid size-9 place-items-center text-cuero/50 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
@@ -1300,6 +1427,59 @@ new #[Title('Auto')] class extends Component
                                         </button>
                                     </div>
                                 </div>
+
+                                @if ($this->renewingDocumentId === $doc->id)
+                                    <form wire:submit="saveRenewal" class="mt-3 space-y-3 border-t border-cuero/15 pt-3">
+                                        <div class="grid gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <x-ui.date-field model="renewDocExpiresOn" id="renewDocExpiresOn-{{ $doc->id }}" label="Nuevo vencimiento" accent="grafito" preset="vencimiento" />
+                                                @error('renewDocExpiresOn') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                            </div>
+                                        </div>
+                                        @if ($doc->interval_months)
+                                            <p class="text-xs text-cuero/60">Te sugerí la fecha según su periodicidad de {{ $doc->interval_months }} {{ $doc->interval_months === 1 ? 'mes' : 'meses' }}. Cambiala si no coincide.</p>
+                                        @endif
+                                        <p class="text-xs text-cuero/60">La vigencia hasta el {{ $doc->expires_on->format('d/m/Y') }} queda guardada en el historial.</p>
+                                        <div class="flex gap-2">
+                                            <button type="submit"
+                                                class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte">
+                                                Guardar
+                                            </button>
+                                            <button type="button" wire:click="cancelRenewal"
+                                                class="min-h-11 rounded-sm px-3 text-cuero/70 hover:text-cuero">Cancelar</button>
+                                        </div>
+                                    </form>
+                                @else
+                                    <button type="button" wire:click="startRenewingDocument({{ $doc->id }})"
+                                        class="mt-3 min-h-11 w-full rounded-sm border border-grafito/40 px-3 text-sm font-medium text-grafito hover:bg-grafito/5 focus-visible:outline-2 focus-visible:outline-grafito sm:w-auto">
+                                        Lo renové
+                                    </button>
+                                @endif
+
+                                @if ($doc->renewals->isNotEmpty())
+                                    <button type="button" wire:click="toggleDocHistory({{ $doc->id }})"
+                                        aria-expanded="{{ $this->docHistoryId === $doc->id ? 'true' : 'false' }}"
+                                        class="mt-3 flex min-h-11 items-center gap-1 text-sm text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-grafito">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+                                            class="size-4 transition-transform {{ $this->docHistoryId === $doc->id ? 'rotate-90' : '' }}">
+                                            <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" />
+                                        </svg>
+                                        {{ $this->docHistoryId === $doc->id ? 'Ocultar vigencias anteriores' : 'Ver vigencias anteriores' }}
+                                    </button>
+
+                                    @if ($this->docHistoryId === $doc->id)
+                                        <ul class="mt-2 divide-y divide-cuero/15 border-y border-cuero/15">
+                                            @foreach ($doc->renewals as $renewal)
+                                                <li wire:key="renewal-{{ $renewal->id }}" class="py-2">
+                                                    <p class="text-sm">Venció el <span class="font-medium">{{ $renewal->expires_on->format('d/m/Y') }}</span></p>
+                                                    @if ($this->isShared)
+                                                        <p class="text-xs text-cuero/50">Renovó {{ $renewal->user->name }}</p>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                @endif
                             @endif
                         </li>
                     @endforeach
@@ -1309,7 +1489,7 @@ new #[Title('Auto')] class extends Component
             {{-- Agregar documento --}}
             @if ($this->addingDocument)
                 <form wire:submit="addDocument" class="space-y-3 rounded-sm border border-cuero/20 p-3">
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="grid gap-3 sm:grid-cols-3">
                         <div>
                             <label for="docName" class="mb-1 block text-sm font-medium">Documento</label>
                             <input id="docName" type="text" wire:model="docName" autocomplete="off" list="documentos-comunes"
@@ -1324,6 +1504,14 @@ new #[Title('Auto')] class extends Component
                         </div>
                         <div>
                             <x-ui.date-field model="docExpiresOn" label="Vence" accent="grafito" preset="vencimiento" />
+                        </div>
+                        <div>
+                            <label for="docIntervalMonths" class="mb-1 block text-sm font-medium">Se renueva cada <span class="font-normal text-cuero/60">(meses, opcional)</span></label>
+                            <input id="docIntervalMonths" type="number" inputmode="numeric" min="1" wire:model="docIntervalMonths"
+                                placeholder="12"
+                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
+                            <p class="mt-1 text-xs text-cuero/60">Con esto te sugiero la próxima fecha al renovarlo.</p>
+                            @error('docIntervalMonths') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         </div>
                     </div>
                     <div>
@@ -1431,6 +1619,9 @@ new #[Title('Auto')] class extends Component
                                         </p>
                                         @if ($row['since'] !== null)
                                             <p class="text-xs text-cuero/50">Recorriste {{ $this->km($row['since']) }} desde la carga anterior.</p>
+                                        @endif
+                                        @if ($this->isShared)
+                                            <p class="text-xs text-cuero/50">Anotó {{ $log->user->name }}</p>
                                         @endif
                                     </div>
                                     <button type="button" wire:click="startEditingFuel({{ $log->id }})"
