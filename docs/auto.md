@@ -4,7 +4,7 @@ Mantenimiento del vehículo: qué le toca al auto y cuándo, historial de lo que
 
 ## El auto
 
-- **Alta:** marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. El formulario de alta aparece solo cuando no hay ningún auto accesible; hoy **no hay forma de dar de alta un segundo auto propio desde la interfaz** (el modelo lo soporta).
+- **Alta:** marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. Sin ningún auto accesible el formulario aparece directo; con autos ya cargados, el botón **"+ Otro auto"** (junto al selector) abre el mismo formulario para dar de alta otro auto propio. El auto recién creado queda seleccionado.
 - **Varios autos:** con más de un auto accesible (por ejemplo, uno propio y uno compartido) aparece un selector, que marca los ajenos con "compartido". Al entrar al módulo se muestra el auto más antiguo de los accesibles.
 - **Kilometraje actual:** es la referencia contra la que se calculan los vencimientos. Se puede corregir a mano en cualquier momento (incluso hacia abajo), y además **sube solo**: al registrar un mantenimiento o una carga de combustible con un kilometraje mayor, el del auto se actualiza (nunca baja por esta vía).
 - **Editar** los datos del auto y **eliminarlo** son acciones de dueño. Eliminar el auto borra también todo su historial (mantenimientos, registros y cargas) y requiere confirmación.
@@ -43,6 +43,15 @@ Vencimientos con fecha del auto: seguro, VTV, patente y cualquier otro papel que
 - Se muestran las **últimas 20 cargas**; "Ver más cargas" agranda la ventana de a 20 (las viejas siguen ahí, solo dejan de ocupar la pantalla).
 - Cada carga se puede **editar** en línea (fecha, kilometraje, costo) o **eliminar**, con confirmación. Editar con un kilometraje mayor adelanta el del auto (nunca lo baja).
 - Totales acumulados de lo gastado en mantenimiento y en combustible, por separado (solo se muestran cuando hay algo gastado).
+
+## Gastos por período
+
+Además de los totales acumulados, una sección "Gastos" desglosa lo gastado por período. Es plata, no rendimiento (el límite sobre litros/consumo vive en [`WONTDO.md`](../WONTDO.md)).
+
+- Agrupa **por mes** (default) o **por año**; solo aparecen los períodos con algún costo registrado, del más reciente al más viejo.
+- Cada período muestra el **total** y la separación **mantenimiento vs. combustible** (cada parte solo si tiene algo).
+- Se muestran los últimos **12 períodos**; "Ver más períodos" agranda la ventana de a 12. Cambiar la agrupación o de auto vuelve a la ventana inicial.
+- La sección entera se oculta si el auto no tiene ningún gasto con costo.
 
 ## Compartir
 
