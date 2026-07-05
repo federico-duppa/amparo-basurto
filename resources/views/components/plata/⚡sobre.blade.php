@@ -35,6 +35,11 @@ new #[Title('Sobre')] class extends Component
 
     public string $editMovementNote = '';
 
+    // Edición del objetivo del sobre.
+    public bool $editingTarget = false;
+
+    public string $targetAmountInput = '';
+
     public function mount(int $envelope): void
     {
         $this->envelopeId = $envelope;
@@ -270,6 +275,58 @@ new #[Title('Sobre')] class extends Component
         }
     }
 
+    public function startEditingTarget(): void
+    {
+        $envelope = $this->requireEnvelope();
+
+        $this->targetAmountInput = $envelope->target_amount === null
+            ? ''
+            : rtrim(rtrim((string) $envelope->target_amount, '0'), '.');
+        $this->editingTarget = true;
+        $this->resetValidation();
+    }
+
+    public function updateTarget(): void
+    {
+        $envelope = $this->requireEnvelope();
+
+        $this->validate([
+            'targetAmountInput' => ['nullable', 'numeric', 'gt:0'],
+        ], [
+            'targetAmountInput.numeric' => 'El objetivo tiene que ser un número.',
+            'targetAmountInput.gt' => 'El objetivo tiene que ser mayor a cero.',
+        ]);
+
+        // En un sobre indexado el objetivo es obligatorio: sin vara no hay poder
+        // de compra que cuidar, así que no se puede dejar en blanco.
+        if ($envelope->indexed && trim($this->targetAmountInput) === '') {
+            $this->addError('targetAmountInput', 'Este sobre cuida el poder de compra: necesito un objetivo, decime cuánto en pesos de hoy.');
+
+            return;
+        }
+
+        $nuevo = trim($this->targetAmountInput) === '' ? null : $this->targetAmountInput;
+
+        $envelope->update([
+            'target_amount' => $nuevo,
+            // Al reescribir el objetivo de un sobre indexado, el monto es "en pesos
+            // de hoy": re-anclamos el mes base a este mes para que la vara vuelva a
+            // arrancar desde acá. Sin objetivo (solo posible en nominales) no hay mes base.
+            'target_month' => $envelope->indexed && $nuevo !== null
+                ? now()->startOfMonth()->toDateString()
+                : ($nuevo === null ? null : $envelope->target_month),
+        ]);
+
+        unset($this->envelope);
+        $this->cancelEditingTarget();
+    }
+
+    public function cancelEditingTarget(): void
+    {
+        $this->reset('editingTarget', 'targetAmountInput');
+        $this->resetValidation();
+    }
+
     public function deleteEnvelope(): void
     {
         $this->requireEnvelope()->delete();
@@ -410,15 +467,65 @@ new #[Title('Sobre')] class extends Component
             <p class="text-sm text-teja">Te pasaste de lo que habías reservado en este sobre.</p>
         @endif
 
-        @if ($objetivo !== null)
-            <p class="text-sm text-cuero/70">
-                Objetivo: {{ $this->plata($objetivo, $this->envelope->currency) }}
-                @if ($this->envelope->indexed && $this->envelope->target_month !== null)
-                    (eran {{ $this->plata($this->envelope->target_amount) }} en {{ $this->envelope->target_month->format('m/Y') }}; la vara sube con el IPC)
-                @elseif ($this->envelope->targetReducedByPayments() > 0)
-                    (eran {{ $this->plata($this->envelope->target_amount, $this->envelope->currency) }}; lo fueron bajando los pagos que cumpliste)
+        @if ($editingTarget)
+            <form wire:submit="updateTarget" class="space-y-2 border-t border-cuero/15 pt-3">
+                <label for="targetAmountInput" class="block text-sm text-cuero/70">
+                    Objetivo{{ $this->envelope->indexed ? ' (en pesos de hoy)' : '' }}
+                </label>
+                <input
+                    id="targetAmountInput"
+                    type="text"
+                    inputmode="decimal"
+                    wire:model="targetAmountInput"
+                    placeholder="¿Cuánto querés juntar?"
+                    autocomplete="off"
+                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                >
+                @error('targetAmountInput')
+                    <p class="text-sm text-teja" role="alert">{{ $message }}</p>
+                @enderror
+                @if ($this->envelope->indexed)
+                    <p class="text-sm text-cuero/60">Al cambiarlo, la vara vuelve a arrancar desde este mes.</p>
+                @else
+                    <p class="text-sm text-cuero/60">Dejalo en blanco si no querés fijarte un objetivo.</p>
                 @endif
-            </p>
+                <div class="flex gap-2">
+                    <button
+                        type="submit"
+                        wire:loading.attr="disabled"
+                        class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60"
+                    >
+                        Guardar
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="cancelEditingTarget"
+                        class="min-h-11 rounded-sm px-3 text-cuero/70 hover:text-cuero"
+                    >Cancelar</button>
+                </div>
+            </form>
+        @elseif ($objetivo !== null)
+            <div class="flex items-start gap-2">
+                <p class="min-w-0 flex-1 text-sm text-cuero/70">
+                    Objetivo: {{ $this->plata($objetivo, $this->envelope->currency) }}
+                    @if ($this->envelope->indexed && $this->envelope->target_month !== null)
+                        (eran {{ $this->plata($this->envelope->target_amount) }} en {{ $this->envelope->target_month->format('m/Y') }}; la vara sube con el IPC)
+                    @elseif ($this->envelope->targetReducedByPayments() > 0)
+                        (eran {{ $this->plata($this->envelope->target_amount, $this->envelope->currency) }}; lo fueron bajando los pagos que cumpliste)
+                    @endif
+                </p>
+                <button
+                    type="button"
+                    wire:click="startEditingTarget"
+                    aria-label="Editar el objetivo"
+                    class="-my-2 grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-oliva focus-visible:outline-2 focus-visible:outline-oliva"
+                >
+                    {{-- Heroicon: pencil-square (outline) --}}
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                    </svg>
+                </button>
+            </div>
 
             @if ($progreso !== null)
                 <div class="h-1.5 w-full overflow-hidden rounded-sm bg-cuero/15" role="presentation">
@@ -441,6 +548,18 @@ new #[Title('Sobre')] class extends Component
                     </p>
                 @endif
             @endif
+        @else
+            <button
+                type="button"
+                wire:click="startEditingTarget"
+                class="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-oliva hover:text-oliva/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oliva"
+            >
+                {{-- Heroicon: plus (mini) --}}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5">
+                    <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                </svg>
+                Ponerle un objetivo
+            </button>
         @endif
     </div>
 
