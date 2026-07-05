@@ -96,6 +96,11 @@ document.addEventListener('alpine:init', () => {
                     disabled: this.outOfRange(iso),
                 });
             }
+            // Rellenamos con celdas vacías hasta completar siempre 6 filas (42 celdas):
+            // así el alto del calendario no cambia entre meses y el encabezado no se
+            // mueve al navegar, permitiendo tocar "mes siguiente" varias veces sin
+            // reacomodar el dedo.
+            while (cells.length < 42) cells.push({ blank: true });
             return cells;
         },
 
