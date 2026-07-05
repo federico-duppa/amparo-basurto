@@ -313,13 +313,7 @@ new #[Title('Plata')] class extends Component
                 </datalist>
             </div>
             <div>
-                <label for="spentOn" class="sr-only">Fecha</label>
-                <input
-                    id="spentOn"
-                    type="date"
-                    wire:model="spentOn"
-                    class="min-h-11 rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
-                >
+                <x-ui.date-field model="spentOn" label="Fecha" :srLabel="true" accent="oliva" preset="pasado" />
             </div>
         </div>
         @error('category')

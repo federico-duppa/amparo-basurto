@@ -399,10 +399,7 @@ new #[Title('Salud')] class extends Component
                     @error('newTitular') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label for="newNacimiento" class="mb-1 block text-sm font-medium">Fecha de nacimiento <span class="font-normal text-cuero/60">(opcional)</span></label>
-                    <input id="newNacimiento" type="date" wire:model="newNacimiento"
-                        class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                    @error('newNacimiento') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    <x-ui.date-field model="newNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
                 </div>
             </div>
 
@@ -452,10 +449,7 @@ new #[Title('Salud')] class extends Component
                             @error('editTitular') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label for="editNacimiento" class="mb-1 block text-sm font-medium">Fecha de nacimiento <span class="font-normal text-cuero/60">(opcional)</span></label>
-                            <input id="editNacimiento" type="date" wire:model="editNacimiento"
-                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                            @error('editNacimiento') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            <x-ui.date-field model="editNacimiento" label="Fecha de nacimiento" :optional="true" accent="ciruela" preset="nacimiento" />
                         </div>
                     </div>
                     <div class="flex gap-2">
@@ -657,10 +651,7 @@ new #[Title('Salud')] class extends Component
                 <form wire:submit="addEntry" class="space-y-3 rounded-sm border border-cuero/20 p-4">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
-                            <label for="entryDate" class="mb-1 block text-sm font-medium">Fecha</label>
-                            <input id="entryDate" type="date" wire:model="entryDate"
-                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                            @error('entryDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            <x-ui.date-field model="entryDate" label="Fecha" accent="ciruela" preset="pasado" />
                         </div>
                         <div>
                             <label for="entryType" class="mb-1 block text-sm font-medium">Tipo</label>
@@ -733,10 +724,7 @@ new #[Title('Salud')] class extends Component
                                 <form wire:submit="saveEntry" class="space-y-3">
                                     <div class="grid gap-3 sm:grid-cols-2">
                                         <div>
-                                            <label for="editEntryDate-{{ $entry->id }}" class="mb-1 block text-sm font-medium">Fecha</label>
-                                            <input id="editEntryDate-{{ $entry->id }}" type="date" wire:model="editEntryDate"
-                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                                            @error('editEntryDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                            <x-ui.date-field model="editEntryDate" id="editEntryDate-{{ $entry->id }}" label="Fecha" accent="ciruela" preset="pasado" />
                                         </div>
                                         <div>
                                             <label for="editEntryType-{{ $entry->id }}" class="mb-1 block text-sm font-medium">Tipo</label>

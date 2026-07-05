@@ -494,13 +494,7 @@ new #[Title('Tareas')] class extends Component
             <div class="space-y-3 rounded-sm border border-cuero/20 p-3">
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label for="dueDate" class="mb-1 block text-sm text-cuero/70">Vence</label>
-                        <input
-                            id="dueDate"
-                            type="date"
-                            wire:model="dueDate"
-                            class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
-                        >
+                        <x-ui.date-field model="dueDate" label="Vence" accent="vino" preset="tarea" />
                     </div>
                     <div>
                         <label for="repeat" class="mb-1 block text-sm text-cuero/70">Se repite</label>

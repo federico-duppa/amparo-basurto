@@ -31,4 +31,19 @@
     body {
         @apply bg-crema font-sans text-cuero antialiased;
     }
+
+    /* Evita el parpadeo de nodos controlados por Alpine hasta que arranca */
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+/* El movimiento no es parte de la personalidad: si lo piden, lo apagamos */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
 }

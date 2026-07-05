@@ -39,6 +39,7 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - **Layout único** en `resources/views/layouts/app.blade.php` (`layouts::app`, el default de Livewire): trae fuentes, ícono, la bottom nav móvil que se vuelve sidebar en `lg:`, y el slot de contenido. Todo módulo nuevo se cuelga de este layout y agrega su entrada en la nav.
 - **Design tokens** en `resources/css/app.css` vía `@theme` de Tailwind 4 (config CSS-first, no hay `tailwind.config.js`): ahí viven la paleta (`crema`, `cuero`, `ocre`, `monte`, `teja`, `yerba`, acentos de módulo…) y las fuentes (`font-sans` = Inter, `font-brand` = Bitter). Usar siempre los tokens, nunca hex sueltos en las vistas.
 - **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
+- **Componentes UI compartidos** (no-Livewire) en `resources/views/components/ui/` como componentes Blade anónimos (`<x-ui.nombre>`). El primero es `x-ui.date-field` (ver abajo). Interacción de cliente puntual: usar el Alpine que ya trae Livewire (registrar `Alpine.data(...)` en `resources/js/app.js`, no sumar bundles de JS a medida).
 - Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase` y `actingAs()`.
 - **Specs funcionales en `docs/`**: cada módulo tiene su descripción funcional (`docs/<módulo>.md`, índice en `docs/README.md`) — qué hace, reglas y decisiones, sin detalle de implementación. Al crear un módulo o cambiar su comportamiento, actualizar la spec en el mismo PR. Las specs describen el comportamiento **actual**, no el futuro: lo pendiente y lo descartado no van acá, van al backlog central (ver abajo).
 
@@ -171,6 +172,15 @@ La accesibilidad es un requisito de diseño, UX y desarrollo en toda la app, no 
 ### Regionalización
 
 Locale **es-AR**: voseo en toda la interfaz (coherente con la voz de Amparo), fechas `dd/mm/aaaa`, números `1.234,56`, moneda ARS cuando aplique.
+
+### Ingreso de fechas
+
+**Nunca `<input type="date">`**: el picker nativo del sistema rompe la identidad (se ve como iOS/Android, no como Amparo) y es incómodo para fechas lejanas. Toda fecha se ingresa con **`<x-ui.date-field>`**, el picker propio con forma de sello:
+
+- **Chips de acceso rápido** para el caso común (fecha cercana), en un toque, sin abrir el calendario.
+- **Calendario en hoja inferior** (al alcance del pulgar en móvil, modal centrado en `sm:`), con salto rápido a **mes** y **año** desde el encabezado — así una fecha de nacimiento no obliga a girar ruedas.
+
+Se adapta al campo con el prop `preset`: `tarea` (Hoy/Mañana/Finde/Próx. semana), `pasado` (Hoy/Ayer, default), `vencimiento` (En 6 meses/En 1 año) y `nacimiento` (sin chips, abre en años, no permite futuro). Siempre pasarle el **acento del módulo** (`accent`) y el nombre de la propiedad Livewire (`model`); el valor viaja por `x-modelable` + `wire:model`. Muestra en `dd/mm/aaaa` y guarda ISO.
 
 ### Aplicación por módulo
 
