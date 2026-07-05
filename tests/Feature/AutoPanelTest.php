@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\VehicleType;
 use App\Models\FuelLog;
 use App\Models\MaintenanceItem;
 use App\Models\MaintenanceRecord;
@@ -53,11 +54,61 @@ class AutoPanelTest extends TestCase
 
         $this->assertDatabaseHas('vehicles', [
             'user_id' => $this->user->id,
+            'tipo' => 'auto',
             'marca' => 'Volkswagen',
             'modelo' => 'Gol',
             'patente' => 'AB123CD',
             'kilometraje' => 85000,
         ]);
+    }
+
+    public function test_el_vehiculo_puede_ser_una_moto(): void
+    {
+        Livewire::test('auto.panel')
+            ->set('newTipo', 'moto')
+            ->set('newMarca', 'Honda')
+            ->set('newModelo', 'Wave')
+            ->set('newKilometraje', 12000)
+            ->call('createVehicle')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('vehicles', ['marca' => 'Honda', 'tipo' => 'moto']);
+        $this->assertSame(VehicleType::Moto, Vehicle::where('marca', 'Honda')->first()->tipo);
+    }
+
+    public function test_no_acepta_un_tipo_de_vehiculo_desconocido(): void
+    {
+        Livewire::test('auto.panel')
+            ->set('newTipo', 'lancha')
+            ->set('newMarca', 'Honda')
+            ->set('newModelo', 'Wave')
+            ->set('newKilometraje', 12000)
+            ->call('createVehicle')
+            ->assertHasErrors('newTipo');
+
+        $this->assertDatabaseCount('vehicles', 0);
+    }
+
+    public function test_el_duenio_puede_cambiar_el_tipo_del_vehiculo(): void
+    {
+        $vehicle = Vehicle::factory()->for($this->user)->create();
+
+        Livewire::test('auto.panel')
+            ->call('startEditingVehicle')
+            ->assertSet('editTipo', 'auto')
+            ->set('editTipo', 'moto')
+            ->call('saveVehicle')
+            ->assertHasNoErrors();
+
+        $this->assertSame(VehicleType::Moto, $vehicle->fresh()->tipo);
+    }
+
+    public function test_muestra_el_tipo_cuando_es_una_moto(): void
+    {
+        Vehicle::factory()->for($this->user)->moto()->create(['marca' => 'Honda', 'modelo' => 'Wave']);
+
+        Livewire::test('auto.panel')
+            ->assertSee('Moto');
     }
 
     public function test_al_crear_un_auto_se_siembran_mantenimientos_sugeridos(): void

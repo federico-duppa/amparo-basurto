@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\HealthSubjectType;
 use App\Models\HealthEntry;
 use App\Models\HealthRecord;
 use App\Models\User;
@@ -20,11 +21,13 @@ new #[Title('Salud')] class extends Component
     // Alta de una historia clínica.
     public bool $addingRecord = false;
     public string $newTitular = '';
+    public string $newTitularTipo = 'persona';
     public string $newNacimiento = '';
 
     // Edición del titular (solo el dueño).
     public bool $editingRecord = false;
     public string $editTitular = '';
+    public string $editTitularTipo = 'persona';
     public string $editNacimiento = '';
 
     // Edición de la ficha médica (cualquiera con acceso).
@@ -71,6 +74,7 @@ new #[Title('Salud')] class extends Component
     {
         $data = $this->validate([
             'newTitular' => ['required', 'string', 'max:80'],
+            'newTitularTipo' => ['required', Rule::enum(HealthSubjectType::class)],
             'newNacimiento' => ['nullable', 'date', 'before_or_equal:today'],
         ], [
             'newTitular.required' => 'Contame de quién es la historia.',
@@ -79,10 +83,11 @@ new #[Title('Salud')] class extends Component
 
         $record = auth()->user()->healthRecords()->create([
             'titular' => trim($data['newTitular']),
+            'titular_tipo' => $data['newTitularTipo'],
             'nacimiento' => $data['newNacimiento'] ?: null,
         ]);
 
-        $this->reset('newTitular', 'newNacimiento', 'addingRecord');
+        $this->reset('newTitular', 'newTitularTipo', 'newNacimiento', 'addingRecord');
         $this->recordId = $record->id;
     }
 
@@ -99,6 +104,7 @@ new #[Title('Salud')] class extends Component
         $record = $this->requireOwnedRecord();
 
         $this->editTitular = $record->titular;
+        $this->editTitularTipo = $record->titular_tipo->value;
         $this->editNacimiento = $record->nacimiento?->format('Y-m-d') ?? '';
         $this->editingRecord = true;
         $this->resetValidation();
@@ -110,6 +116,7 @@ new #[Title('Salud')] class extends Component
 
         $data = $this->validate([
             'editTitular' => ['required', 'string', 'max:80'],
+            'editTitularTipo' => ['required', Rule::enum(HealthSubjectType::class)],
             'editNacimiento' => ['nullable', 'date', 'before_or_equal:today'],
         ], [
             'editTitular.required' => 'Contame de quién es la historia.',
@@ -118,6 +125,7 @@ new #[Title('Salud')] class extends Component
 
         $record->update([
             'titular' => trim($data['editTitular']),
+            'titular_tipo' => $data['editTitularTipo'],
             'nacimiento' => $data['editNacimiento'] ?: null,
         ]);
 
@@ -418,12 +426,25 @@ new #[Title('Salud')] class extends Component
         @if (! $this->record)
             {{-- Sin historias todavía --}}
             <p class="rounded-sm border border-cuero/20 px-4 py-6 text-center text-cuero/70">
-                Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar o de un paciente: contame de quién es y empezamos.
+                Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar, de un paciente o de una mascota: contame de quién es y empezamos.
             </p>
         @endif
 
         <form wire:submit="createRecord" class="space-y-3 rounded-sm border border-cuero/20 p-4">
             <h2 class="font-brand text-lg font-bold">Nueva historia clínica</h2>
+
+            <fieldset>
+                <legend class="mb-1 block text-sm font-medium">¿Historia de qué?</legend>
+                <div class="flex gap-2">
+                    @foreach (\App\Enums\HealthSubjectType::cases() as $tipo)
+                        <label class="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-sm border border-cuero/30 px-3 text-sm text-cuero/70 has-checked:border-ciruela has-checked:bg-ciruela/10 has-checked:font-semibold has-checked:text-ciruela has-focus-visible:outline-2 has-focus-visible:outline-ciruela sm:flex-none sm:px-6">
+                            <input type="radio" wire:model="newTitularTipo" name="newTitularTipo" value="{{ $tipo->value }}" class="sr-only">
+                            {{ $tipo->label() }}
+                        </label>
+                    @endforeach
+                </div>
+                @error('newTitularTipo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+            </fieldset>
 
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -476,6 +497,18 @@ new #[Title('Salud')] class extends Component
             @if ($this->editingRecord)
                 <form wire:submit="saveRecord" class="space-y-3">
                     <h2 class="font-brand text-lg font-bold">Editar titular</h2>
+                    <fieldset>
+                        <legend class="mb-1 block text-sm font-medium">¿Historia de qué?</legend>
+                        <div class="flex gap-2">
+                            @foreach (\App\Enums\HealthSubjectType::cases() as $tipo)
+                                <label class="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-sm border border-cuero/30 px-3 text-sm text-cuero/70 has-checked:border-ciruela has-checked:bg-ciruela/10 has-checked:font-semibold has-checked:text-ciruela has-focus-visible:outline-2 has-focus-visible:outline-ciruela sm:flex-none sm:px-6">
+                                    <input type="radio" wire:model="editTitularTipo" name="editTitularTipo" value="{{ $tipo->value }}" class="sr-only">
+                                    {{ $tipo->label() }}
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('editTitularTipo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    </fieldset>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
                             <label for="editTitular" class="mb-1 block text-sm font-medium">¿De quién es?</label>
@@ -500,6 +533,11 @@ new #[Title('Salud')] class extends Component
                 <div class="flex items-start gap-3">
                     <div class="min-w-0 flex-1">
                         <h2 class="font-brand text-2xl font-bold leading-tight">{{ $record->titular }}</h2>
+                        @if ($record->titular_tipo !== \App\Enums\HealthSubjectType::Persona)
+                            <span class="mt-1 inline-block rounded-sm border border-ciruela/40 px-2 py-0.5 text-xs font-medium text-ciruela">
+                                {{ $record->titular_tipo->label() }}
+                            </span>
+                        @endif
                         @if ($record->nacimiento)
                             <p class="mt-1 text-sm text-cuero/70">
                                 Nació el {{ $record->nacimiento->format('d/m/Y') }}

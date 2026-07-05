@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\HealthSubjectType;
 use App\Models\HealthEntry;
 use App\Models\HealthRecord;
 use App\Models\User;
@@ -34,7 +35,7 @@ class SaludPanelTest extends TestCase
     public function test_muestra_el_estado_vacio_con_la_voz_de_amparo(): void
     {
         $this->get('/salud')
-            ->assertSee('Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar o de un paciente: contame de quién es y empezamos.');
+            ->assertSee('Todavía no armaste ninguna historia clínica. Puede ser tuya, de un familiar, de un paciente o de una mascota: contame de quién es y empezamos.');
     }
 
     public function test_puede_crear_una_historia(): void
@@ -48,7 +49,63 @@ class SaludPanelTest extends TestCase
         $this->assertDatabaseHas('health_records', [
             'user_id' => $this->user->id,
             'titular' => 'Rosa Basurto',
+            'titular_tipo' => 'persona',
         ]);
+    }
+
+    public function test_el_titular_puede_ser_una_mascota_o_un_documento(): void
+    {
+        Livewire::test('salud.panel')
+            ->set('newTitular', 'Chicha')
+            ->set('newTitularTipo', 'mascota')
+            ->call('createRecord')
+            ->assertHasNoErrors();
+
+        Livewire::test('salud.panel')
+            ->set('addingRecord', true)
+            ->set('newTitular', 'Ficha modelo')
+            ->set('newTitularTipo', 'documento')
+            ->call('createRecord')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('health_records', ['titular' => 'Chicha', 'titular_tipo' => 'mascota']);
+        $this->assertDatabaseHas('health_records', ['titular' => 'Ficha modelo', 'titular_tipo' => 'documento']);
+
+        $chicha = HealthRecord::where('titular', 'Chicha')->first();
+        $this->assertSame(HealthSubjectType::Mascota, $chicha->titular_tipo);
+    }
+
+    public function test_no_acepta_un_tipo_de_titular_desconocido(): void
+    {
+        Livewire::test('salud.panel')
+            ->set('newTitular', 'Rosa Basurto')
+            ->set('newTitularTipo', 'planta')
+            ->call('createRecord')
+            ->assertHasErrors('newTitularTipo');
+
+        $this->assertDatabaseCount('health_records', 0);
+    }
+
+    public function test_el_duenio_puede_cambiar_el_tipo_de_titular(): void
+    {
+        $record = HealthRecord::factory()->for($this->user)->create();
+
+        Livewire::test('salud.panel')
+            ->call('startEditingRecord')
+            ->assertSet('editTitularTipo', 'persona')
+            ->set('editTitularTipo', 'mascota')
+            ->call('saveRecord')
+            ->assertHasNoErrors();
+
+        $this->assertSame(HealthSubjectType::Mascota, $record->fresh()->titular_tipo);
+    }
+
+    public function test_muestra_el_tipo_cuando_no_es_persona(): void
+    {
+        HealthRecord::factory()->for($this->user)->mascota()->create(['titular' => 'Chicha']);
+
+        Livewire::test('salud.panel')
+            ->assertSee('Mascota');
     }
 
     public function test_el_titular_es_obligatorio(): void

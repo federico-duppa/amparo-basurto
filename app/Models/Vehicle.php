@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\VehicleType;
 use Database\Factories\VehicleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,15 +19,21 @@ class Vehicle extends Model
     private const MIN_USAGE_DAYS = 14;
 
     protected $fillable = [
+        'tipo',
         'marca',
         'modelo',
         'patente',
         'kilometraje',
     ];
 
+    protected $attributes = [
+        'tipo' => 'auto',
+    ];
+
     protected function casts(): array
     {
         return [
+            'tipo' => VehicleType::class,
             'kilometraje' => 'integer',
         ];
     }

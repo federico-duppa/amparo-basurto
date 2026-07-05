@@ -1,10 +1,12 @@
 <?php
 
+use App\Enums\VehicleType;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -25,6 +27,7 @@ new #[Title('Auto')] class extends Component
 
     // Alta de auto (con autos ya cargados el formulario se abre a pedido).
     public bool $addingVehicle = false;
+    public string $newTipo = 'auto';
     public string $newMarca = '';
     public string $newModelo = '';
     public string $newPatente = '';
@@ -32,6 +35,7 @@ new #[Title('Auto')] class extends Component
 
     // Edición de los datos del auto (solo el dueño).
     public bool $editingVehicle = false;
+    public string $editTipo = 'auto';
     public string $editMarca = '';
     public string $editModelo = '';
     public string $editPatente = '';
@@ -119,20 +123,21 @@ new #[Title('Auto')] class extends Component
 
     public function startAddingVehicle(): void
     {
-        $this->reset('newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->addingVehicle = true;
         $this->resetValidation();
     }
 
     public function cancelAddVehicle(): void
     {
-        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('addingVehicle', 'newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->resetValidation();
     }
 
     public function createVehicle(): void
     {
         $data = $this->validate([
+            'newTipo' => ['required', Rule::enum(VehicleType::class)],
             'newMarca' => ['required', 'string', 'max:60'],
             'newModelo' => ['required', 'string', 'max:60'],
             'newPatente' => ['nullable', 'string', 'max:12'],
@@ -145,6 +150,7 @@ new #[Title('Auto')] class extends Component
         ]);
 
         $vehicle = auth()->user()->vehicles()->create([
+            'tipo' => $data['newTipo'],
             'marca' => trim($data['newMarca']),
             'modelo' => trim($data['newModelo']),
             'patente' => $data['newPatente'] ? strtoupper(trim($data['newPatente'])) : null,
@@ -161,7 +167,7 @@ new #[Title('Auto')] class extends Component
             $this->makeItem($vehicle, $preset['name'], $preset['interval_km'], $preset['interval_months']);
         }
 
-        $this->reset('addingVehicle', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
+        $this->reset('addingVehicle', 'newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->vehicleId = $vehicle->id;
         $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
     }
@@ -178,6 +184,7 @@ new #[Title('Auto')] class extends Component
     {
         $vehicle = $this->requireOwnedVehicle();
 
+        $this->editTipo = $vehicle->tipo->value;
         $this->editMarca = $vehicle->marca;
         $this->editModelo = $vehicle->modelo;
         $this->editPatente = (string) $vehicle->patente;
@@ -190,6 +197,7 @@ new #[Title('Auto')] class extends Component
         $vehicle = $this->requireOwnedVehicle();
 
         $data = $this->validate([
+            'editTipo' => ['required', Rule::enum(VehicleType::class)],
             'editMarca' => ['required', 'string', 'max:60'],
             'editModelo' => ['required', 'string', 'max:60'],
             'editPatente' => ['nullable', 'string', 'max:12'],
@@ -199,6 +207,7 @@ new #[Title('Auto')] class extends Component
         ]);
 
         $vehicle->update([
+            'tipo' => $data['editTipo'],
             'marca' => trim($data['editMarca']),
             'modelo' => trim($data['editModelo']),
             'patente' => $data['editPatente'] ? strtoupper(trim($data['editPatente'])) : null,
@@ -1013,6 +1022,19 @@ new #[Title('Auto')] class extends Component
         <form wire:submit="createVehicle" class="space-y-3 rounded-sm border border-cuero/20 p-4">
             <h2 class="font-brand text-lg font-bold">{{ $this->vehicle ? 'Otro auto' : 'Tu auto' }}</h2>
 
+            <fieldset>
+                <legend class="mb-1 block text-sm font-medium">Tipo</legend>
+                <div class="flex gap-2">
+                    @foreach (\App\Enums\VehicleType::cases() as $tipo)
+                        <label class="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-sm border border-cuero/30 px-3 text-sm text-cuero/70 has-checked:border-grafito has-checked:bg-grafito/10 has-checked:font-semibold has-checked:text-grafito has-focus-visible:outline-2 has-focus-visible:outline-grafito sm:flex-none sm:px-6">
+                            <input type="radio" wire:model="newTipo" name="newTipo" value="{{ $tipo->value }}" class="sr-only">
+                            {{ $tipo->label() }}
+                        </label>
+                    @endforeach
+                </div>
+                @error('newTipo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+            </fieldset>
+
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
                     <label for="newMarca" class="mb-1 block text-sm font-medium">Marca</label>
@@ -1086,6 +1108,18 @@ new #[Title('Auto')] class extends Component
             @if ($this->editingVehicle)
                 <form wire:submit="saveVehicle" class="space-y-3">
                     <h2 class="font-brand text-lg font-bold">Editar auto</h2>
+                    <fieldset>
+                        <legend class="mb-1 block text-sm font-medium">Tipo</legend>
+                        <div class="flex gap-2">
+                            @foreach (\App\Enums\VehicleType::cases() as $tipo)
+                                <label class="flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-sm border border-cuero/30 px-3 text-sm text-cuero/70 has-checked:border-grafito has-checked:bg-grafito/10 has-checked:font-semibold has-checked:text-grafito has-focus-visible:outline-2 has-focus-visible:outline-grafito sm:flex-none sm:px-6">
+                                    <input type="radio" wire:model="editTipo" name="editTipo" value="{{ $tipo->value }}" class="sr-only">
+                                    {{ $tipo->label() }}
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('editTipo') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    </fieldset>
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
                             <label for="editMarca" class="mb-1 block text-sm font-medium">Marca</label>
@@ -1119,6 +1153,11 @@ new #[Title('Auto')] class extends Component
                 <div class="flex items-start gap-3">
                     <div class="min-w-0 flex-1">
                         <h2 class="font-brand text-2xl font-bold leading-tight">{{ $vehicle->nombre() }}</h2>
+                        @if ($vehicle->tipo === \App\Enums\VehicleType::Moto)
+                            <span class="mt-1 mr-1 inline-block rounded-sm border border-grafito/40 px-2 py-0.5 text-xs font-medium text-grafito">
+                                {{ $vehicle->tipo->label() }}
+                            </span>
+                        @endif
                         @if ($vehicle->patente)
                             <span class="mt-1 inline-block rounded-sm bg-ocre px-2 py-0.5 text-xs font-semibold tracking-wide text-negro">
                                 {{ $vehicle->patente }}

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HealthSubjectType;
 use Database\Factories\HealthRecordFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class HealthRecord extends Model
 
     protected $fillable = [
         'titular',
+        'titular_tipo',
         'nacimiento',
         'grupo_sanguineo',
         'obra_social',
@@ -24,9 +26,14 @@ class HealthRecord extends Model
         'medicacion',
     ];
 
+    protected $attributes = [
+        'titular_tipo' => 'persona',
+    ];
+
     protected function casts(): array
     {
         return [
+            'titular_tipo' => HealthSubjectType::class,
             'nacimiento' => 'date',
         ];
     }

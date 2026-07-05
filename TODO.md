@@ -11,12 +11,14 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 ## Auto (`/auto`)
 
+- **Comportamiento propio por tipo de vehículo (moto).** El tipo ya existe (`App\Enums\VehicleType`: auto o moto) pero hoy solo se guarda y se muestra. Falta diferenciar: presets de mantenimiento de moto (kit de transmisión en vez de correa de distribución, intervalos de aceite más cortos) y textos de Amparo que digan "la moto" donde hoy dicen "el auto".
 - **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (mantenimientos y documentación) solo se ven al entrar al módulo.
 - **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono.
 - **Partir el componente `auto.panel`.** ~1.500 líneas y ~30 propiedades públicas en un solo single-file component; separar en hijos (mantenimientos, combustible, documentación, compartir) para bajar el payload de Livewire por interacción y hacerlo más manejable.
 
 ## Salud (`/salud`)
 
+- **Comportamiento propio por tipo de titular (mascota, documento).** El tipo ya existe (`App\Enums\HealthSubjectType`: persona, mascota o documento) pero hoy solo se guarda y se muestra. Falta diferenciar: para **mascota**, campos propios (especie/raza en la ficha, veterinario en los contactos, la obra social que no aplica); para **documento** (ficha de paciente genérica, sin persona real detrás), esconder lo que presupone a alguien vivo y pensar la ficha como plantilla.
 - **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
 - **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (controles, recetas, próximas dosis) solo se ven al entrar al módulo. Bloqueado por la misma infraestructura transversal de notificaciones que Auto y Tareas.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.

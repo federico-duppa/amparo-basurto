@@ -4,7 +4,8 @@ Mantenimiento del vehículo: qué le toca al auto y cuándo, historial de lo que
 
 ## El auto
 
-- **Alta:** marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. Sin ningún auto accesible el formulario aparece directo; con autos ya cargados, el botón **"+ Otro auto"** (junto al selector) abre el mismo formulario para dar de alta otro auto propio. El auto recién creado queda seleccionado.
+- **Tipo de vehículo:** un "auto" puede ser un **auto** o una **moto** (auto por defecto). El tipo se elige al crearlo y el dueño puede corregirlo al editar; una moto se marca con una etiqueta junto al nombre. Por ahora el tipo solo se guarda y se muestra — mismos presets, estados y reglas para los dos —; lo que se diferencie por tipo vive en [`TODO.md`](../TODO.md).
+- **Alta:** tipo, marca, modelo, patente (opcional, se guarda en mayúsculas) y kilometraje actual. Sin ningún auto accesible el formulario aparece directo; con autos ya cargados, el botón **"+ Otro auto"** (junto al selector) abre el mismo formulario para dar de alta otro auto propio. El auto recién creado queda seleccionado.
 - **Varios autos:** con más de un auto accesible (por ejemplo, uno propio y uno compartido) aparece un selector, que marca los ajenos con "compartido". Al entrar al módulo se muestra el auto más antiguo de los accesibles.
 - **Kilometraje actual:** es la referencia contra la que se calculan los vencimientos. Se puede corregir a mano en cualquier momento (incluso hacia abajo), y además **sube solo**: al registrar un mantenimiento o una carga de combustible con un kilometraje mayor, el del auto se actualiza (nunca baja por esta vía).
 - **Editar** los datos del auto y **eliminarlo** son acciones de dueño. Eliminar el auto borra también todo su historial (mantenimientos, registros y cargas) y requiere confirmación.

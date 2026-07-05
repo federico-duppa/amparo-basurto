@@ -1,13 +1,14 @@
 # Salud (`/salud`)
 
-Historias clínicas de personas: la propia, la de un familiar o las de pacientes, si quien usa la app trabaja en el rubro. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
+Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro), la de una mascota o una ficha de paciente genérica. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
 
 Como en la ficha, **todas las secciones estructuradas son del día a día**: cualquier persona con acceso a la historia (dueño o compartida) las opera completas. Eliminar la historia borra también todo lo anotado en ellas.
 
 ## La historia y su titular
 
-- El **titular** es una persona, no un usuario de la app: puede ser uno mismo, un familiar o un paciente sin cuenta. La historia guarda su nombre y, opcionalmente, su fecha de nacimiento (si está, se muestra también la edad calculada).
-- **Alta:** solo pide de quién es la historia (nombre) y la fecha de nacimiento opcional; el resto de la ficha se completa después. Se pueden crear **varias historias** desde la interfaz ("+ Nueva historia").
+- El **titular** no es un usuario de la app y puede ser de tres tipos: una **persona** (uno mismo, un familiar, un paciente sin cuenta — el default), una **mascota**, o un **documento** (una ficha de paciente genérica, sin persona real detrás). La historia guarda su nombre y, opcionalmente, su fecha de nacimiento (si está, se muestra también la edad calculada).
+- El tipo se elige al crear la historia y el dueño puede corregirlo al editar al titular; cuando no es persona se marca con una etiqueta junto al nombre. Por ahora el tipo solo se guarda y se muestra — misma ficha y mismas secciones para los tres —; lo que se diferencie por tipo vive en [`TODO.md`](../TODO.md).
+- **Alta:** solo pide el tipo, de quién es la historia (nombre) y la fecha de nacimiento opcional; el resto de la ficha se completa después. Se pueden crear **varias historias** desde la interfaz ("+ Nueva historia").
 - **Varias historias:** con más de una historia accesible aparece un selector, que marca las ajenas con "compartida". Al entrar al módulo se muestra la historia más antigua de las accesibles.
 - **Editar al titular** (nombre y nacimiento) y **eliminar la historia** son acciones de dueño. Eliminarla borra también todas sus entradas y requiere confirmación.
 
