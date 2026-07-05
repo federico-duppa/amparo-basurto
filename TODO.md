@@ -23,6 +23,15 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Acotar la lista de cargas de combustible.** Se muestran todas sin límite; con uso real la pantalla crece sin freno. Mostrar las últimas N con un "ver más".
 - **Partir el componente `auto.panel`.** ~1.500 líneas y ~30 propiedades públicas en un solo single-file component; separar en hijos (mantenimientos, combustible, documentación, compartir) para bajar el payload de Livewire por interacción y hacerlo más manejable.
 
+## Salud (`/salud`)
+
+- **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
+- **Vacunas como sección propia** (carnet/calendario). Hoy se registran como entradas de tipo "vacuna"; si el uso lo amerita, se estructura.
+- **Vencimientos y recordatorios**: próximo control, receta que caduca, estudio anual. Mismo patrón de "vencimiento" que la documentación de Auto.
+- **Contactos médicos por historia**: médico de cabecera, especialistas, teléfonos.
+- **Mediciones** (peso, presión, glucemia…) con su evolución en el tiempo.
+- **Reporte imprimible/exportable** de la historia para llevar al médico.
+
 ## Plata (`/plata`)
 
 - **Más monedas además de ARS y USD.**

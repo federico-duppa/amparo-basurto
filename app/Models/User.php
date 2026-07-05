@@ -72,6 +72,40 @@ class User extends Authenticatable
     }
 
     /**
+     * Historias clínicas de las que este usuario es dueño.
+     *
+     * @return HasMany<HealthRecord, $this>
+     */
+    public function healthRecords(): HasMany
+    {
+        return $this->hasMany(HealthRecord::class);
+    }
+
+    /**
+     * Historias clínicas que otras personas compartieron con este usuario.
+     *
+     * @return BelongsToMany<HealthRecord, $this>
+     */
+    public function sharedHealthRecords(): BelongsToMany
+    {
+        return $this->belongsToMany(HealthRecord::class, 'health_record_user')->withTimestamps();
+    }
+
+    /**
+     * Historias clínicas a las que el usuario tiene acceso: las propias más
+     * las compartidas. Se usa como relación de scoping (findOrFail sobre lo
+     * ajeno responde 404).
+     *
+     * @return Builder<HealthRecord>
+     */
+    public function accessibleHealthRecords(): Builder
+    {
+        return HealthRecord::query()->where(fn (Builder $query) => $query
+            ->where('health_records.user_id', $this->id)
+            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+    }
+
+    /**
      * Sobres del módulo Plata (de ahorro y de gasto previsto).
      *
      * @return HasMany<Envelope, $this>

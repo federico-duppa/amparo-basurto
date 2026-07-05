@@ -24,6 +24,7 @@
     --color-vino: #6e3b3b; /* módulo Todo */
     --color-grafito: #4a4038; /* módulo Auto (8.1:1 sobre crema) */
     --color-oliva: #5c5233; /* módulo Plata (6.2:1 sobre crema) */
+    --color-ciruela: #5f4152; /* módulo Salud (7.2:1 sobre crema) */
 }
 
 @layer base {
