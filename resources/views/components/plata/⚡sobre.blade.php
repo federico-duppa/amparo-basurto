@@ -274,7 +274,7 @@ new #[Title('Sobre')] class extends Component
     {
         $this->requireEnvelope()->delete();
 
-        $this->redirect(route('plata.sobres'));
+        $this->redirect(route('plata.sobres'), navigate: true);
     }
 
     #[Computed]
@@ -359,20 +359,23 @@ new #[Title('Sobre')] class extends Component
     <nav aria-label="Secciones de Plata" class="flex border-b border-cuero/20">
         <a
             href="{{ route('plata.gastos') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Gastos</a>
         <a
             href="{{ route('plata.sobres') }}"
+            wire:navigate
             aria-current="page"
             class="-mb-px flex min-h-11 items-center border-b-2 border-oliva px-3 text-sm font-semibold text-oliva"
         >Sobres</a>
         <a
             href="{{ route('plata.reportes') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Reportes</a>
     </nav>
 
-    <a href="{{ route('plata.sobres') }}" class="inline-flex min-h-11 items-center gap-1 text-sm text-cuero/70 hover:text-cuero">
+    <a href="{{ route('plata.sobres') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1 text-sm text-cuero/70 hover:text-cuero">
         {{-- Heroicon: chevron-left (mini) --}}
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5">
             <path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
@@ -388,25 +391,36 @@ new #[Title('Sobre')] class extends Component
             </span>
         </h2>
 
-        <p class="text-2xl font-semibold {{ $this->envelope->balance() < 0 ? 'text-teja' : '' }}">
-            {{ $this->plata($this->envelope->balance(), $this->envelope->currency) }}
+        @php
+            // Saldo y objetivo se resuelven una sola vez por render: balance() y
+            // currentTarget() consultan la base, y progress()/gap() los vuelven
+            // a llamar internamente. Derivamos progreso y faltante acá con la
+            // misma lógica de los métodos del modelo para no repetir queries.
+            $saldo = $this->envelope->balance();
+            $objetivo = $this->envelope->currentTarget();
+            $progreso = ($objetivo !== null && $objetivo > 0) ? max(0, $saldo) / $objetivo * 100 : null;
+            $falta = $objetivo !== null ? max(0, $objetivo - $saldo) : null;
+        @endphp
+
+        <p class="text-2xl font-semibold {{ $saldo < 0 ? 'text-teja' : '' }}">
+            {{ $this->plata($saldo, $this->envelope->currency) }}
         </p>
 
-        @if ($this->envelope->isGasto() && $this->envelope->balance() < 0)
+        @if ($this->envelope->isGasto() && $saldo < 0)
             <p class="text-sm text-teja">Te pasaste de lo que habías reservado en este sobre.</p>
         @endif
 
-        @if ($this->envelope->currentTarget() !== null)
+        @if ($objetivo !== null)
             <p class="text-sm text-cuero/70">
-                Objetivo: {{ $this->plata($this->envelope->currentTarget(), $this->envelope->currency) }}
+                Objetivo: {{ $this->plata($objetivo, $this->envelope->currency) }}
                 @if ($this->envelope->indexed && $this->envelope->target_month !== null)
                     (eran {{ $this->plata($this->envelope->target_amount) }} en {{ $this->envelope->target_month->format('m/Y') }}; la vara sube con el IPC)
                 @endif
             </p>
 
-            @if ($this->envelope->progress() !== null)
+            @if ($progreso !== null)
                 <div class="h-1.5 w-full overflow-hidden rounded-sm bg-cuero/15" role="presentation">
-                    <div class="h-full bg-oliva" style="width: {{ min(100, $this->envelope->progress()) }}%"></div>
+                    <div class="h-full bg-oliva" style="width: {{ min(100, $progreso) }}%"></div>
                 </div>
             @endif
 
@@ -415,9 +429,9 @@ new #[Title('Sobre')] class extends Component
                     <p class="text-sm text-ocre-oscuro" role="status">
                         Todavía no tengo datos de inflación cargados, así que muestro el objetivo sin ajustar.
                     </p>
-                @elseif ($this->envelope->gap() > 0)
+                @elseif ($falta > 0)
                     <p class="text-sm text-cuero" role="status">
-                        Para mantener el poder de compra te falta aportar {{ $this->plata($this->envelope->gap()) }}.
+                        Para mantener el poder de compra te falta aportar {{ $this->plata($falta) }}.
                     </p>
                 @else
                     <p class="text-sm text-yerba" role="status">

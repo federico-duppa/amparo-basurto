@@ -206,11 +206,13 @@ new #[Title('Plata')] class extends Component
     #[Computed]
     public function monthTotals(): Collection
     {
+        // Agregado en SQL (SUM ... GROUP BY): evita hidratar todos los gastos
+        // del mes en memoria solo para sumar por moneda.
         return auth()->user()->expenses()
             ->whereBetween('spent_on', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
-            ->get()
             ->groupBy('currency')
-            ->map(fn (Collection $group) => $group->sum('amount'));
+            ->selectRaw('currency, SUM(amount) as total')
+            ->pluck('total', 'currency');
     }
 
     public function plata(int|float|string|null $value, string $currency = 'ARS'): string
@@ -229,15 +231,18 @@ new #[Title('Plata')] class extends Component
     <nav aria-label="Secciones de Plata" class="flex border-b border-cuero/20">
         <a
             href="{{ route('plata.gastos') }}"
+            wire:navigate
             aria-current="page"
             class="-mb-px flex min-h-11 items-center border-b-2 border-oliva px-3 text-sm font-semibold text-oliva"
         >Gastos</a>
         <a
             href="{{ route('plata.sobres') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Sobres</a>
         <a
             href="{{ route('plata.reportes') }}"
+            wire:navigate
             class="-mb-px flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-cuero/70 hover:text-cuero"
         >Reportes</a>
     </nav>
