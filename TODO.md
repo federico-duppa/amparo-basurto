@@ -7,6 +7,7 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 ## Transversal
 
 - **Biometría (passkeys/WebAuthn) en el login.** Mejora del ingreso; requiere HTTPS y un paquete dedicado.
+- **Trampa de foco en el date picker (`x-ui.date-field`).** La hoja del calendario cierra con Escape y con clic en el fondo, pero todavía no atrapa el foco del teclado dentro del diálogo mientras está abierta. Requiere el plugin Focus de Alpine (Livewire no lo trae por defecto).
 
 ## Auto (`/auto`)
 

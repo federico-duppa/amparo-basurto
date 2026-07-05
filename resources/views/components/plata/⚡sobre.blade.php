@@ -444,13 +444,7 @@ new #[Title('Sobre')] class extends Component
                 >
             </div>
             <div>
-                <label for="movementDate" class="sr-only">Fecha</label>
-                <input
-                    id="movementDate"
-                    type="date"
-                    wire:model="movementDate"
-                    class="min-h-11 rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
-                >
+                <x-ui.date-field model="movementDate" label="Fecha" :srLabel="true" accent="oliva" preset="pasado" />
             </div>
         </div>
         <div>
@@ -563,13 +557,7 @@ new #[Title('Sobre')] class extends Component
                                         >
                                     </div>
                                     <div>
-                                        <label for="editMovementDate" class="sr-only">Fecha</label>
-                                        <input
-                                            id="editMovementDate"
-                                            type="date"
-                                            wire:model="editMovementDate"
-                                            class="min-h-11 rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
-                                        >
+                                        <x-ui.date-field model="editMovementDate" label="Fecha" :srLabel="true" accent="oliva" preset="pasado" />
                                     </div>
                                 </div>
                                 <div>

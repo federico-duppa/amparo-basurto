@@ -1062,10 +1062,7 @@ new #[Title('Auto')] class extends Component
                                 <form wire:submit="saveLog" class="mt-3 space-y-3 border-t border-cuero/15 pt-3">
                                     <div class="grid gap-3 sm:grid-cols-3">
                                         <div>
-                                            <label for="logDate-{{ $item->id }}" class="mb-1 block text-sm font-medium">Fecha</label>
-                                            <input id="logDate-{{ $item->id }}" type="date" wire:model="logDate"
-                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                                            @error('logDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                            <x-ui.date-field model="logDate" id="logDate-{{ $item->id }}" label="Fecha" accent="grafito" preset="pasado" />
                                         </div>
                                         <div>
                                             <label for="logMileage-{{ $item->id }}" class="mb-1 block text-sm font-medium">Kilometraje</label>
@@ -1116,10 +1113,7 @@ new #[Title('Auto')] class extends Component
                                                     <form wire:submit="saveRecord" class="space-y-3">
                                                         <div class="grid gap-3 sm:grid-cols-3">
                                                             <div>
-                                                                <label for="editRecordDate-{{ $record->id }}" class="mb-1 block text-sm font-medium">Fecha</label>
-                                                                <input id="editRecordDate-{{ $record->id }}" type="date" wire:model="editRecordDate"
-                                                                    class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                                                                @error('editRecordDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                                                <x-ui.date-field model="editRecordDate" id="editRecordDate-{{ $record->id }}" label="Fecha" accent="grafito" preset="pasado" />
                                                             </div>
                                                             <div>
                                                                 <label for="editRecordMileage-{{ $record->id }}" class="mb-1 block text-sm font-medium">Kilometraje</label>
@@ -1249,10 +1243,7 @@ new #[Title('Auto')] class extends Component
                                             @error('editDocName') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                         </div>
                                         <div>
-                                            <label for="editDocExpiresOn-{{ $doc->id }}" class="mb-1 block text-sm font-medium">Vence</label>
-                                            <input id="editDocExpiresOn-{{ $doc->id }}" type="date" wire:model="editDocExpiresOn"
-                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                                            @error('editDocExpiresOn') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                            <x-ui.date-field model="editDocExpiresOn" id="editDocExpiresOn-{{ $doc->id }}" label="Vence" accent="grafito" preset="vencimiento" />
                                         </div>
                                     </div>
                                     <div>
@@ -1332,10 +1323,7 @@ new #[Title('Auto')] class extends Component
                             @error('docName') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label for="docExpiresOn" class="mb-1 block text-sm font-medium">Vence</label>
-                            <input id="docExpiresOn" type="date" wire:model="docExpiresOn"
-                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                            @error('docExpiresOn') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                            <x-ui.date-field model="docExpiresOn" label="Vence" accent="grafito" preset="vencimiento" />
                         </div>
                     </div>
                     <div>
@@ -1373,10 +1361,7 @@ new #[Title('Auto')] class extends Component
 
             <form wire:submit="addFuel" class="grid gap-3 rounded-sm border border-cuero/20 p-3 sm:grid-cols-4 sm:items-end">
                 <div>
-                    <label for="fuelDate" class="mb-1 block text-sm font-medium">Fecha</label>
-                    <input id="fuelDate" type="date" wire:model="fuelDate"
-                        class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                    @error('fuelDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    <x-ui.date-field model="fuelDate" label="Fecha" accent="grafito" preset="pasado" />
                 </div>
                 <div>
                     <label for="fuelMileage" class="mb-1 block text-sm font-medium">Kilometraje</label>
@@ -1411,10 +1396,7 @@ new #[Title('Auto')] class extends Component
                                 <form wire:submit="saveFuelEdit" class="space-y-3">
                                     <div class="grid gap-3 sm:grid-cols-3">
                                         <div>
-                                            <label for="editFuelDate-{{ $log->id }}" class="mb-1 block text-sm font-medium">Fecha</label>
-                                            <input id="editFuelDate-{{ $log->id }}" type="date" wire:model="editFuelDate"
-                                                class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40">
-                                            @error('editFuelDate') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                            <x-ui.date-field model="editFuelDate" id="editFuelDate-{{ $log->id }}" label="Fecha" accent="grafito" preset="pasado" />
                                         </div>
                                         <div>
                                             <label for="editFuelMileage-{{ $log->id }}" class="mb-1 block text-sm font-medium">Kilometraje</label>
