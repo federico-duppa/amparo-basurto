@@ -183,3 +183,4 @@ Cada módulo/sección tiene **su propio acento de color dentro de la misma palet
 | Todo — "Tareas" (`/tareas`) | Vino tierra | `#6E3B3B` (token `vino`, 7.2:1 sobre crema) |
 | Auto — "Auto" (`/auto`) | Grafito tierra | `#4A4038` (token `grafito`, 8.1:1 sobre crema) |
 | Finanzas — "Plata" (`/plata`) | Oliva seca | `#5C5233` (token `oliva`, 6.2:1 sobre crema) |
+| Salud — "Salud" (`/salud`) | Ciruela seca | `#5F4152` (token `ciruela`, 7.2:1 sobre crema) |

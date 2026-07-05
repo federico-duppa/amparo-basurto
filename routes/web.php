@@ -14,6 +14,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::livewire('/tareas', 'todo.todo-list')->name('todos');
     Route::livewire('/auto', 'auto.panel')->name('auto');
+    Route::livewire('/salud', 'salud.panel')->name('salud');
     Route::livewire('/plata', 'plata.gastos')->name('plata.gastos');
     Route::livewire('/plata/sobres', 'plata.sobres')->name('plata.sobres');
     Route::livewire('/plata/sobres/{envelope}', 'plata.sobre')->name('plata.sobre')->whereNumber('envelope');
