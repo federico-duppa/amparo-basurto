@@ -40,7 +40,21 @@ php artisan migrate               # migraciones (SQLite en database/database.sql
 - **Design tokens** en `resources/css/app.css` vía `@theme` de Tailwind 4 (config CSS-first, no hay `tailwind.config.js`): ahí viven la paleta (`crema`, `cuero`, `ocre`, `monte`, `teja`, `yerba`, acentos de módulo…) y las fuentes (`font-sans` = Inter, `font-brand` = Bitter). Usar siempre los tokens, nunca hex sueltos en las vistas.
 - **Fuentes**: Bitter e Inter se cargan con `<link>` a fonts.bunny.net en el layout. No usar la opción `fonts` del plugin de Vite (descarga en build time) — no está disponible en todos los entornos de build.
 - Modelos y migraciones estándar de Laravel; los tests de módulos usan `Livewire::test('módulo.nombre')` con `RefreshDatabase` y `actingAs()`.
-- **Specs funcionales en `docs/`**: cada módulo tiene su descripción funcional (`docs/<módulo>.md`, índice en `docs/README.md`) — qué hace, reglas y decisiones, sin detalle de implementación. Al crear un módulo o cambiar su comportamiento, actualizar la spec en el mismo PR.
+- **Specs funcionales en `docs/`**: cada módulo tiene su descripción funcional (`docs/<módulo>.md`, índice en `docs/README.md`) — qué hace, reglas y decisiones, sin detalle de implementación. Al crear un módulo o cambiar su comportamiento, actualizar la spec en el mismo PR. Las specs describen el comportamiento **actual**, no el futuro: lo pendiente y lo descartado no van acá, van al backlog central (ver abajo).
+
+### Backlog: `TODO.md` / `WONTDO.md`
+
+El backlog vive **centralizado** en la raíz, no disperso en las specs:
+
+- **`TODO.md`**: todo lo pendiente de implementar, agrupado por módulo. Es la única fuente de verdad de "lo que falta".
+- **`WONTDO.md`**: lo que decidimos **no** hacer (límites de producto, no deuda). **No sugerir ni proponer** ítems que estén acá — son decisiones tomadas a propósito.
+
+Reglas para mantenerlos:
+
+- Al **terminar** un pendiente, quitarlo de `TODO.md` en el mismo PR (y reflejar el comportamiento nuevo en la spec de `docs/`).
+- Al **descubrir o decidir** un pendiente nuevo, agregarlo a `TODO.md`; al **descartar** un alcance, moverlo a `WONTDO.md` con el motivo.
+- Para **retomar** algo descartado hay que sacarlo primero de `WONTDO.md` y pasarlo a `TODO.md` — nunca implementar directo lo que estaba descartado.
+- No duplicar el backlog en las specs: si una spec necesita mencionar un límite, que apunte a estos archivos.
 
 ### Deploy (Laravel Cloud)
 

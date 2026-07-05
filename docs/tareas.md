@@ -15,8 +15,6 @@ Lista de pendientes al estilo GTD mínimo: una sola lista por usuario, pensada p
 - **Estado vacío:** "Todavía no anotaste nada. Cuando quieras, empezamos."
 - **Scoping:** cada usuario ve y opera solo sus tareas.
 
-## Fuera de alcance (por ahora)
+## Backlog
 
-- Proyectos, etiquetas, fechas de vencimiento, prioridades.
-- Edición del título de una tarea existente (se elimina y se vuelve a crear).
-- Archivado o limpieza automática de completadas.
+Lo pendiente de este módulo vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).

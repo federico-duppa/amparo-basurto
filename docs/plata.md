@@ -94,11 +94,6 @@ El orden importa y está fijado por tests.
 - Si al momento de necesitar una cotización falta el dato del día (o el más cercano quedó a más de una semana), se intenta traer puntualmente de la API; si falla, **fallback al último valor conocido** y se deja de insistir por unos minutos. Estar offline nunca bloquea al usuario.
 - Los meses sin dato de inflación cuentan como 0% (equivale a "último valor conocido").
 
-## Fuera de alcance (v1)
+## Backlog
 
-- Cuentas y saldos globales / patrimonio.
-- Compra-venta de dólares como transferencia entre cuentas.
-- Realizado vs. no-realizado.
-- Otras monedas además de ARS y USD.
-- Gastos imputados en una moneda distinta a la del sobre (la conversión existe solo en transferencias).
-- Edición de gastos y movimientos (se eliminan y se vuelven a cargar).
+Lo pendiente de este módulo vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).
