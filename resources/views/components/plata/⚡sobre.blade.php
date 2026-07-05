@@ -14,7 +14,11 @@ use Livewire\Component;
 
 new #[Title('Sobre')] class extends Component
 {
+    private const TIMELINE_PAGE = 20;
+
     public int $envelopeId;
+
+    public int $timelineLimit = self::TIMELINE_PAGE;
 
     public string $movementAmount = '';
 
@@ -357,10 +361,35 @@ new #[Title('Sobre')] class extends Component
 
     /**
      * La historia del sobre: movimientos y gastos imputados, intercalados.
+     * Se muestra de a TIMELINE_PAGE entradas; "Ver más" agranda la ventana.
      */
     #[Computed]
     public function timeline(): Collection
     {
+        return $this->timelineEntries->take($this->timelineLimit)->values();
+    }
+
+    #[Computed]
+    public function hasMoreTimeline(): bool
+    {
+        return $this->timelineEntries->count() > $this->timelineLimit;
+    }
+
+    public function showMoreTimeline(): void
+    {
+        $this->timelineLimit += self::TIMELINE_PAGE;
+    }
+
+    /**
+     * Las dos fuentes de la historia, ya ordenadas y acotadas en SQL: con
+     * limit+1 de cada una alcanza para armar la página y saber si hay más,
+     * sin cargar toda la historia para mergear en PHP.
+     */
+    #[Computed]
+    public function timelineEntries(): Collection
+    {
+        $take = $this->timelineLimit + 1;
+
         $labels = [
             EnvelopeMovement::APORTE => 'Aporte',
             EnvelopeMovement::RETIRO => 'Retiro',
@@ -368,7 +397,8 @@ new #[Title('Sobre')] class extends Component
             EnvelopeMovement::TRANSFER_OUT => 'Transferencia enviada',
         ];
 
-        $movimientos = $this->envelope->movements()->get()
+        $movimientos = $this->envelope->movements()
+            ->orderByDesc('moved_on')->orderByDesc('id')->limit($take)->get()
             ->map(fn (EnvelopeMovement $movement) => [
                 'key' => 'mov-'.$movement->id,
                 'id' => $movement->id,
@@ -382,7 +412,8 @@ new #[Title('Sobre')] class extends Component
                 'editable' => $movement->transfer_group === null,
             ]);
 
-        $gastos = $this->envelope->expenses()->get()
+        $gastos = $this->envelope->expenses()
+            ->orderByDesc('spent_on')->orderByDesc('id')->limit($take)->get()
             ->map(fn (Expense $expense) => [
                 'key' => 'gasto-'.$expense->id,
                 'id' => $expense->id,
@@ -771,6 +802,17 @@ new #[Title('Sobre')] class extends Component
                     </li>
                 @endforeach
             </ul>
+
+            @if ($this->hasMoreTimeline)
+                <button
+                    type="button"
+                    wire:click="showMoreTimeline"
+                    wire:loading.attr="disabled"
+                    class="min-h-11 w-full rounded-sm border border-cuero/30 px-4 text-sm font-medium text-cuero/70 hover:text-cuero focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oliva disabled:opacity-60"
+                >
+                    Ver más historia
+                </button>
+            @endif
         @endif
     </div>
 

@@ -19,7 +19,7 @@ Monedas soportadas en v1: **ARS y USD**.
 
 ### 1. Sobre de ahorro
 
-Un chanchito donde vas juntando en el tiempo para un objetivo. Es la fase donde la **inflación importa**. Dos flujos: **aportes** (entra) y **retiros** (sale), cada uno con fecha, monto y nota opcional. El **saldo emerge de los movimientos** — no se edita, se reconstruye desde la historia. De ahí salen el progreso contra el objetivo y el timeline.
+Un chanchito donde vas juntando en el tiempo para un objetivo. Es la fase donde la **inflación importa**. Dos flujos: **aportes** (entra) y **retiros** (sale), cada uno con fecha, monto y nota opcional. El **saldo emerge de los movimientos** — no se edita, se reconstruye desde la historia. De ahí salen el progreso contra el objetivo y el timeline. La historia del sobre se muestra de a 20 entradas (movimientos y gastos imputados intercalados, de más nuevo a más viejo), con un "Ver más historia" para seguir hacia atrás.
 
 Dos tipos, según el objetivo:
 

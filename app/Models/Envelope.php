@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\EnvelopeFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -72,11 +73,34 @@ class Envelope extends Model
     }
 
     /**
+     * Precarga en una sola consulta los agregados de los que emergen el saldo
+     * y el objetivo vigente, para listar muchos sobres sin ir a la base por
+     * cada uno. balance() y targetReducedByPayments() los usan si están.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeWithFinancials(Builder $query): Builder
+    {
+        return $query
+            ->withSum(['movements as inflow_sum' => fn ($q) => $q->whereIn('type', [EnvelopeMovement::APORTE, EnvelopeMovement::TRANSFER_IN])], 'amount')
+            ->withSum(['movements as outflow_sum' => fn ($q) => $q->whereIn('type', [EnvelopeMovement::RETIRO, EnvelopeMovement::TRANSFER_OUT])], 'amount')
+            ->withSum('expenses as spent_sum', 'amount')
+            ->withSum(['expenses as reduces_target_sum' => fn ($q) => $q->where('reduces_target', true)], 'amount');
+    }
+
+    /**
      * El saldo emerge de la historia: entradas − salidas − gastos imputados.
      * Nunca se edita a mano.
      */
     public function balance(): float
     {
+        if (array_key_exists('inflow_sum', $this->attributes)) {
+            return (float) $this->attributes['inflow_sum']
+                - (float) $this->attributes['outflow_sum']
+                - (float) $this->attributes['spent_sum'];
+        }
+
         $in = (float) $this->movements()
             ->whereIn('type', [EnvelopeMovement::APORTE, EnvelopeMovement::TRANSFER_IN])
             ->sum('amount');
@@ -117,6 +141,10 @@ class Envelope extends Model
      */
     public function targetReducedByPayments(): float
     {
+        if (array_key_exists('reduces_target_sum', $this->attributes)) {
+            return (float) $this->attributes['reduces_target_sum'];
+        }
+
         return (float) $this->expenses()->where('reduces_target', true)->sum('amount');
     }
 

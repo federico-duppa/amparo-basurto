@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Envelope;
 use App\Models\EnvelopeMovement;
+use App\Models\Expense;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -156,6 +158,57 @@ class PlataSobresTest extends TestCase
         $this->get('/plata/sobres')
             ->assertSee('Vacaciones')
             ->assertSee('$250.000,00');
+    }
+
+    public function test_muestra_el_objetivo_vigente_y_lo_que_le_bajaron_los_pagos(): void
+    {
+        $sobre = Envelope::factory()->gasto()->for($this->user)->create([
+            'name' => 'Seguro',
+            'currency' => 'ARS',
+            'target_amount' => 200000,
+        ]);
+        EnvelopeMovement::factory()->for($this->user)->for($sobre)->create(['amount' => 100000]);
+        Expense::factory()->for($this->user)->create([
+            'envelope_id' => $sobre->id,
+            'amount' => 50000,
+            'reduces_target' => true,
+            'spent_on' => now()->format('Y-m-d'),
+        ]);
+
+        // Saldo: 100.000 fondeados − 50.000 gastados. Objetivo vigente:
+        // 200.000 − 50.000 que cumplió el pago.
+        $this->get('/plata/sobres')
+            ->assertSee('$50.000,00')
+            ->assertSee('de $150.000,00');
+    }
+
+    public function test_la_lista_no_dispara_consultas_por_cada_sobre(): void
+    {
+        // El saldo y el objetivo salen precargados en la consulta del listado:
+        // agregar sobres no puede agregar consultas.
+        $consultas = function (int $cantidad): int {
+            Envelope::query()->delete();
+
+            foreach (range(1, $cantidad) as $i) {
+                $sobre = Envelope::factory()->for($this->user)->create(['target_amount' => 100000]);
+                EnvelopeMovement::factory()->for($this->user)->for($sobre)->create(['amount' => 40000]);
+                Expense::factory()->for($this->user)->create([
+                    'envelope_id' => $sobre->id,
+                    'amount' => 5000,
+                    'spent_on' => now()->format('Y-m-d'),
+                ]);
+            }
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            Livewire::test('plata.sobres');
+            $total = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $total;
+        };
+
+        $this->assertSame($consultas(2), $consultas(8));
     }
 
     public function test_no_ve_los_sobres_de_otros_usuarios(): void

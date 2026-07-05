@@ -71,7 +71,10 @@ new #[Title('Sobres')] class extends Component
     #[Computed]
     public function envelopes(): Collection
     {
-        return auth()->user()->envelopes()->orderBy('name')->get();
+        // withFinancials precarga las sumas de movimientos y gastos: el saldo
+        // y el objetivo de cada sobre salen de esta única consulta, sin ir a
+        // la base por cada uno.
+        return auth()->user()->envelopes()->withFinancials()->orderBy('name')->get();
     }
 
     public function plata(int|float|string|null $value, string $currency = 'ARS'): string
@@ -222,6 +225,14 @@ new #[Title('Sobres')] class extends Component
                         class="flex items-center gap-3 rounded-sm border border-cuero/20 p-4 hover:border-oliva/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oliva"
                     >
                         <div class="min-w-0 flex-1">
+                            @php
+                                // Saldo y objetivo se resuelven una sola vez por sobre (en los
+                                // indexados currentTarget() consulta el IPC); el progreso se
+                                // deriva acá con la misma lógica de progress() para no repetirla.
+                                $saldo = $sobre->balance();
+                                $objetivo = $sobre->currentTarget();
+                                $progreso = ($objetivo !== null && $objetivo > 0) ? max(0, $saldo) / $objetivo * 100 : null;
+                            @endphp
                             <p class="flex flex-wrap items-center gap-2">
                                 <span class="break-words font-medium">{{ $sobre->name }}</span>
                                 <span class="rounded-sm bg-oliva/10 px-1.5 py-0.5 text-xs font-medium text-oliva">
@@ -229,14 +240,14 @@ new #[Title('Sobres')] class extends Component
                                 </span>
                             </p>
                             <p class="mt-1 text-sm text-cuero/60">
-                                Saldo: {{ $this->plata($sobre->balance(), $sobre->currency) }}
-                                @if ($sobre->currentTarget() !== null)
-                                    de {{ $this->plata($sobre->currentTarget(), $sobre->currency) }}
+                                Saldo: {{ $this->plata($saldo, $sobre->currency) }}
+                                @if ($objetivo !== null)
+                                    de {{ $this->plata($objetivo, $sobre->currency) }}
                                 @endif
                             </p>
-                            @if ($sobre->progress() !== null)
+                            @if ($progreso !== null)
                                 <div class="mt-2 h-1.5 w-full overflow-hidden rounded-sm bg-cuero/15" role="presentation">
-                                    <div class="h-full bg-oliva" style="width: {{ min(100, $sobre->progress()) }}%"></div>
+                                    <div class="h-full bg-oliva" style="width: {{ min(100, $progreso) }}%"></div>
                                 </div>
                             @endif
                         </div>

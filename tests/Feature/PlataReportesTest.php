@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Models\InflationRate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -134,6 +135,41 @@ class PlataReportesTest extends TestCase
             ->set('fx', 'euro-oficial')
             ->set('tiempo', 'cuantico')
             ->assertSee('$1.000,00');
+    }
+
+    public function test_el_reporte_no_consulta_cotizaciones_ni_ipc_por_cada_gasto(): void
+    {
+        InflationRate::create(['period' => now()->subMonth()->startOfMonth()->toDateString(), 'monthly_pct' => 10]);
+        InflationRate::create(['period' => now()->startOfMonth()->toDateString(), 'monthly_pct' => 10]);
+        ExchangeRate::create(['rate_type' => 'blue', 'quoted_on' => now()->toDateString(), 'sell' => 1000]);
+
+        // El lente resuelve la referencia una vez, memoiza el IPC por mes y
+        // precarga la serie blue: más gastos (en los mismos meses) no pueden
+        // significar más consultas.
+        $consultas = function (int $gastos): int {
+            Expense::query()->delete();
+
+            foreach (range(1, $gastos) as $i) {
+                Expense::factory()->for($this->user)->create([
+                    'amount' => 1000,
+                    'currency' => $i % 2 === 0 ? 'ARS' : 'USD',
+                    'rate_ars' => $i % 2 === 0 ? null : 1000,
+                    'spent_on' => now()->subMonths($i % 3)->format('Y-m-d'),
+                ]);
+            }
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            Livewire::test('plata.reportes')
+                ->set('fx', 'blue')
+                ->set('tiempo', 'real');
+            $total = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $total;
+        };
+
+        $this->assertSame($consultas(3), $consultas(30));
     }
 
     public function test_no_ve_los_gastos_de_otros_usuarios(): void

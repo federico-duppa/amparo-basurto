@@ -33,9 +33,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 ## Plata (`/plata`)
 
 - **Más monedas además de ARS y USD.**
-- **Precalcular los saldos en la lista de sobres (N+1).** Por cada sobre el listado llama `balance()` (dos sumas sobre movimientos + una sobre gastos), `currentTarget()` y `progress()` —que a su vez re-llama a los dos anteriores—, así que son ~9 queries por sobre. Con muchos sobres la pantalla dispara cientos de consultas. Precargar los agregados con `withSum`/subqueries en la computed `envelopes()` y derivar saldo/objetivo/progreso desde ahí. (La ficha individual del sobre ya resuelve saldo y objetivo una sola vez por render.)
-- **Evitar el N+1 de cotización/inflación en Reportes.** `Lens::value()` corre por cada gasto de los últimos 12 meses y por gasto puede pegarle a `ExchangeRate` y a `InflationRate`. La cotización de referencia es constante en todo el reporte (resolverla una vez fuera del `map`); `factorBetween` solo varía por mes (memoizar por `Y-m` o precargar el rango en una query); la serie de `ExchangeRate` se puede precargar e indexar en memoria por fecha.
-- **Paginar el historial del sobre.** `timeline()` carga todos los movimientos y todos los gastos del sobre, los concatena y ordena en PHP sin límite. Ordenar por fecha en SQL en cada query y acotar el merge (paginación o "ver más").
 
 ## Tareas (`/tareas`)
 
