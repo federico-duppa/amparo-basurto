@@ -14,6 +14,7 @@ Rompecabezas de lógica en una grilla de **8×8** dividida en **8 regiones de co
 ### Cómo se juega
 
 - **Un toque cicla la casilla:** vacía → cruz → reina → vacía. La cruz es una nota para descartar una casilla mientras razonás; no cuenta como reina.
+- **Deslizar el dedo marca cruces de corrido:** al arrastrar por el tablero se van poniendo cruces en las casillas por las que pasás, sin tener que tocar una por una. Si el deslizamiento **arranca sobre una cruz**, en cambio las borra. El gesto nunca pisa una reina ya puesta. (Con teclado o mouse, cada casilla sigue ciclando con Enter/clic.)
 - **Conflictos en rojo (teja):** si dos reinas comparten fila, columna o color, o quedan pegadas (incluida la diagonal), se marcan las dos. Es una ayuda de lectura, no un puntaje.
 - **Se gana** cuando hay 8 reinas y ningún conflicto. Ahí aparece la felicitación de Amparo con el tiempo que tardaste.
 - **Cronómetro:** arranca con el primer toque y se frena al resolver. **Vaciar** limpia el tablero (mismo puzzle); **Tablero nuevo** genera otro.

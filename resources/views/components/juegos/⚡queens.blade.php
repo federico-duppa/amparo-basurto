@@ -58,20 +58,31 @@ new #[Title('Queens')] class extends Component
             </span>
         </div>
 
-        {{-- Tablero --}}
+        {{-- Tablero. Un toque cicla la casilla; deslizar el dedo pinta cruces
+             (o las borra, si arrancás sobre una). touch-none evita que el gesto
+             haga scroll de la página mientras marcás. --}}
         <div
-            class="grid grid-cols-8 select-none overflow-hidden rounded-sm touch-manipulation"
+            class="queens-board grid grid-cols-8 touch-none select-none overflow-hidden rounded-sm"
+            :class="won && 'is-won'"
             role="grid"
             aria-label="Tablero de Queens, 8 por 8"
+            @pointermove="onPointerMove($event)"
+            @pointerup.window="onPointerUp()"
+            @pointercancel.window="onPointerCancel()"
         >
             <template x-for="cell in cellList" :key="cell.r + '-' + cell.c">
                 <button
                     type="button"
-                    @click="cycle(cell.r, cell.c)"
-                    :style="cellBg(cell.r, cell.c) + ';' + cellBorder(cell.r, cell.c)"
+                    :data-cell="cell.r + ',' + cell.c"
+                    @pointerdown="onPointerDown(cell.r, cell.c)"
+                    @click="onCellClick(cell.r, cell.c)"
+                    :style="cellBg(cell.r, cell.c) + ';' + cellBorder(cell.r, cell.c) + ';--cell-delay:' + (cell.r + cell.c)"
                     :aria-label="cellLabel(cell.r, cell.c)"
                     class="relative grid aspect-square w-full place-items-center focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-monte"
                 >
+                    {{-- Onda dorada de victoria (invisible salvo al ganar) --}}
+                    <span class="queens-sheen pointer-events-none absolute inset-0" aria-hidden="true"></span>
+
                     {{-- Aro de conflicto --}}
                     <span
                         x-show="isBad(cell.r, cell.c)"
@@ -91,7 +102,7 @@ new #[Title('Queens')] class extends Component
                         <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
                     </svg>
 
-                    {{-- Reina (corona) --}}
+                    {{-- Reina (corona). Al ganar se vuelve dorada (ver .queens-crown en app.css) --}}
                     <svg
                         x-show="marks[cell.r][cell.c] === 2"
                         :class="isBad(cell.r, cell.c) ? 'text-teja' : 'text-cuero'"
@@ -99,7 +110,7 @@ new #[Title('Queens')] class extends Component
                         viewBox="0 0 24 24"
                         fill="currentColor"
                         aria-hidden="true"
-                        class="size-2/3"
+                        class="queens-crown size-2/3"
                     >
                         <path d="M4 18 L6.5 10 L9.5 13 L12 7 L14.5 13 L17.5 10 L20 18 Z" />
                         <rect x="5" y="19" width="14" height="2.4" rx="1" />
@@ -150,6 +161,7 @@ new #[Title('Queens')] class extends Component
                 <p>Poné una reina en cada fila, cada columna y cada color: ocho en total.</p>
                 <p>Dos reinas no pueden tocarse, ni siquiera en diagonal.</p>
                 <p>Un toque marca la casilla con una cruz (para descartarla), otro pone la reina y otro la deja limpia. Si una reina rompe una regla, la vas a ver en rojo.</p>
+                <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
             </div>
         </details>
     </div>
