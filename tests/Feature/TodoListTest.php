@@ -297,6 +297,25 @@ class TodoListTest extends TestCase
         $this->assertModelExists($suelta);
     }
 
+    public function test_editar_sin_cambiar_etiquetas_no_barre_las_sueltas(): void
+    {
+        $todo = Todo::factory()->for($this->user)->create(['title' => 'Con etiqueta']);
+        $enUso = Tag::factory()->for($this->user)->create(['name' => 'en-uso']);
+        $todo->tags()->attach($enUso);
+        $suelta = Tag::factory()->for($this->user)->create(['name' => 'sin-uso']);
+
+        // La limpieza de huérfanas sólo corre cuando la selección de
+        // etiquetas cambió; un guardado que no las toca no barre nada.
+        Livewire::test('todo.todo-list')
+            ->call('startEditing', $todo->id)
+            ->set('title', 'Con etiqueta editada')
+            ->call('saveEdit')
+            ->assertHasNoErrors();
+
+        $this->assertModelExists($suelta);
+        $this->assertSame(['en-uso'], $todo->fresh()->tags->pluck('name')->all());
+    }
+
     public function test_las_pendientes_se_listan_antes_que_las_completadas(): void
     {
         Todo::factory()->for($this->user)->completed()->create(['title' => 'Tarea completada']);
@@ -738,6 +757,28 @@ class TodoListTest extends TestCase
             ->call('moveUp', $normal1->id);
 
         $this->get('/tareas')->assertSeeInOrder(['Importante arriba', 'Normal vieja', 'Normal nueva']);
+    }
+
+    public function test_reordenar_con_posiciones_normalizadas_solo_intercambia_las_dos_filas(): void
+    {
+        $alfa = Todo::factory()->for($this->user)->create(['title' => 'Alfa']);
+        $beta = Todo::factory()->for($this->user)->create(['title' => 'Beta']);
+        Todo::factory()->for($this->user)->create(['title' => 'Gama']);
+        $delta = Todo::factory()->for($this->user)->create(['title' => 'Delta']);
+
+        // Primer movimiento: normaliza las posiciones empatadas en 0.
+        Livewire::test('todo.todo-list')->call('moveUp', $beta->id);
+
+        $alfaPos = $alfa->fresh()->position;
+        $deltaPos = $delta->fresh()->position;
+
+        // Segundo movimiento: swap puro entre Beta y su vecina; los extremos
+        // no se reescriben.
+        Livewire::test('todo.todo-list')->call('moveDown', $beta->id);
+
+        $this->get('/tareas')->assertSeeInOrder(['Delta', 'Gama', 'Beta', 'Alfa']);
+        $this->assertSame($alfaPos, $alfa->fresh()->position);
+        $this->assertSame($deltaPos, $delta->fresh()->position);
     }
 
     public function test_no_puede_reordenar_tareas_ajenas(): void

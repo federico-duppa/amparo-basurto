@@ -254,7 +254,10 @@ new #[Title('Tareas')] class extends Component
             $query->where('project_id', $this->activeProjectId);
         }
 
-        $query->get()->each->delete();
+        // Borrado masivo en una sola query: las subtareas y el pivote de
+        // etiquetas caen por cascade de FK, ningún modelo tiene hooks de
+        // deleting que necesiten trabajo fila por fila.
+        $query->delete();
 
         $this->resetPage('completadas');
 
@@ -322,6 +325,18 @@ new #[Title('Tareas')] class extends Component
             return;
         }
 
+        // Con posiciones ya únicas alcanza con intercambiar las dos filas.
+        if ($list->pluck('position')->unique()->count() === $list->count()) {
+            $positionI = $list[$i]->position;
+
+            $list[$i]->update(['position' => $list[$j]->position]);
+            $list[$j]->update(['position' => $positionI]);
+
+            return;
+        }
+
+        // Hay empates (las tareas nuevas arrancan en 0): se normaliza toda la
+        // lista una vez y los próximos movimientos vuelven al swap de arriba.
         $swap = $list[$i];
         $list[$i] = $list[$j];
         $list[$j] = $swap;
@@ -387,7 +402,12 @@ new #[Title('Tareas')] class extends Component
             ->map(fn ($name) => auth()->user()->tags()->firstOrCreate(['name' => $name])->id)
             ->all();
 
-        $todo->tags()->sync($ids);
+        $changes = $todo->tags()->sync($ids);
+
+        // Si la selección no cambió, no hay huérfanas nuevas ni nada que refrescar.
+        if ($changes['attached'] === [] && $changes['detached'] === []) {
+            return;
+        }
 
         // Una etiqueta que se quedó sin tareas no tiene por qué seguir en la lista.
         auth()->user()->tags()->doesntHave('todos')->delete();

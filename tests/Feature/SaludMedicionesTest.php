@@ -105,6 +105,27 @@ class SaludMedicionesTest extends TestCase
             ->assertSee('120/80 mmHg');
     }
 
+    public function test_el_resumen_muestra_la_ultima_por_fecha_aunque_se_cargue_despues(): void
+    {
+        HealthMeasurement::factory()->for($this->record, 'record')->for($this->user)->create([
+            'type' => 'peso', 'value' => 78.5, 'measured_on' => '2026-07-01',
+        ]);
+        // Una medición vieja cargada después (id más alto) no pisa a la última.
+        HealthMeasurement::factory()->for($this->record, 'record')->for($this->user)->create([
+            'type' => 'peso', 'value' => 82, 'measured_on' => '2026-06-01',
+        ]);
+        HealthMeasurement::factory()->for($this->record, 'record')->for($this->user)->create([
+            'type' => 'glucemia', 'value' => 95, 'measured_on' => '2026-05-01',
+        ]);
+
+        $latest = Livewire::test('salud.mediciones', ['recordId' => $this->record->id])
+            ->instance()->latestByType;
+
+        $this->assertSame(78.5, (float) $latest->get('peso')->value);
+        $this->assertSame(95.0, (float) $latest->get('glucemia')->value);
+        $this->assertNull($latest->get('presion'));
+    }
+
     public function test_la_evolucion_muestra_la_diferencia_con_la_anterior(): void
     {
         HealthMeasurement::factory()->for($this->record, 'record')->for($this->user)->create([
