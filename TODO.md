@@ -20,16 +20,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 - **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
 
-## Compras (`/compras`)
-
-- **Cantidades por ítem.** Hoy se anota la cosa, no "2 de leche". Sumar una cantidad/unidad opcional sin volver pesado el gesto de anotar.
-- **Pasarle la lista a otra persona (transferir dueño).** Como en Auto, para que una lista compartida no quede huérfana si el dueño deja de usar la app. Hoy solo se comparte y se deja de compartir.
-- **Ordenar las cosas a mano o por sector.** Hoy la lista va alfabética; para el recorrido del súper conviene poder agrupar por góndola o reordenar.
-
-## Plata (`/plata`)
-
-- **Más monedas además de ARS y USD.**
-
 ## Tareas (`/tareas`)
 
 El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buenas apps de tareas: captura rápida + vista de hoy + fechas y recurrencia, con la matriz de Eisenhower como única priorización (ver límites en [WONTDO.md](WONTDO.md)).

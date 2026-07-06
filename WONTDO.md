@@ -12,6 +12,13 @@ Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es 
 - **Compra-venta de dólares como transferencia entre cuentas.** Comprar dólares para gastar después no se registra como nada; cuando gastás esos USD es un gasto efectivo en USD a la cotización de ese día.
 - **Realizado vs. no-realizado.** Es análisis de patrimonio, fuera del alcance del módulo.
 - **Gastos imputados en una moneda distinta a la del sobre.** La conversión entre monedas existe solo en transferencias; imputar un gasto va siempre en la moneda del sobre.
+- **Más monedas además de ARS y USD.** El módulo responde a la realidad de un hogar argentino (pesos + dólar ahorro/gasto), no a llevar cuentas en monedas arbitrarias; sumar monedas complica sobres, cotizaciones e inflación sin un caso de uso real detrás.
+
+## Compras (`/compras`)
+
+- **Cantidades por ítem.** El módulo es para anotar rápido lo que falta, no para armar una lista de supermercado detallada; sumar cantidad/unidad agrega fricción al gesto de anotar que es el corazón del módulo.
+- **Pasarle la lista a otra persona (transferir dueño).** A diferencia de un auto, una lista de compras es efímera y de bajo compromiso; si el dueño deja de usar la app, recrear la lista no tiene el costo que tendría perder el historial de un vehículo. No amerita la complejidad de transferencia de dueño.
+- **Ordenar las cosas a mano o por sector.** El orden alfabético es predecible y no requiere curaduría; reordenar a mano o mantener secciones por góndola es trabajo de mantenimiento que nadie sostiene, y cada supermercado tiene su propio layout.
 
 ## Tareas (`/tareas`)
 
