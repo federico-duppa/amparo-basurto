@@ -11,7 +11,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 ## Auto (`/auto`)
 
-- **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (mantenimientos y documentación) solo se ven al entrar al módulo.
 - **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono.
 - **Partir el componente `auto.panel`.** ~1.900 líneas y ~40 propiedades públicas en un solo single-file component. Livewire dehidrata y rehidrata **todas** las propiedades en cada interacción aunque haya un solo formulario abierto, así que el payload y el costo de checksum crecen sin necesidad. Seguir el patrón que ya usa Salud (`salud.panel` cuelga cuatro hijos Livewire) y separar en `auto.mantenimientos`, `auto.combustible`, `auto.documentos` y `auto.gastos`. Baja el payload por request y hace el módulo manejable.
 - **`spendingByPeriod()` agrupa en PHP, no en SQL.** Trae todos los mantenimientos y cargas con costo y agrupa por mes/año en memoria (decisión deliberada por portabilidad SQLite/Postgres). Con años de historia carga todo en cada render del panel; vigilar si escala y, llegado el caso, resolverlo con una query agregada compatible con ambos motores.
@@ -19,7 +18,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 ## Salud (`/salud`)
 
 - **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
-- **Recordatorios activos (notificaciones) de vencimientos.** Hoy los vencimientos (controles, recetas, próximas dosis) solo se ven al entrar al módulo. Bloqueado por la misma infraestructura transversal de notificaciones que Auto y Tareas.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
 - **Índice compuesto de vencimientos en `health_reminders` y `health_vaccines`.** Las tablas solo traen los índices de FK. `health_measurements` ya trae `(health_record_id, type, measured_on)` y `vehicle_documents` (el par de Auto) con `(vehicle_id, expires_on)`, pero el `(health_record_id, expires_on)` equivalente para recordatorios y vacunas quedó afuera de la migración de índices. Agregarlo por consistencia y para no depender de scans a medida que crece la historia.
 - **`latestByType()` hace una query por tipo de medición.** `salud.mediciones` recorre `HealthMeasurement::TYPES` (peso, presión, glucemia, temperatura…) y dispara un `SELECT ... LIMIT 1` por cada tipo en cada render del panel. Resolverlo con una sola query agrupada (último registro por tipo) en vez de N consultas.
@@ -39,7 +37,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buenas apps de tareas: captura rápida + vista de hoy + fechas y recurrencia, con la matriz de Eisenhower como única priorización (ver límites en [WONTDO.md](WONTDO.md)).
 
 - **Revisión guiada por Amparo.** Repaso semanal conversado de lo que quedó viejo ("Esta quedó de hace tres semanas, ¿la seguís queriendo hacer?").
-- **Recordatorios activos (notificaciones) de vencimientos.** Bloqueado por la infraestructura de notificaciones que todavía no existe (la app no tiene email, corre con scale to zero y no hay push): es transversal y se comparte con Auto. Hasta que esa infra exista, los vencimientos solo se ven al entrar al módulo.
 - **Tareas desde otros módulos.** Que un vencimiento de Auto ("la VTV vence en 15 días") pueda generar una tarea con fecha. Requiere tocar el módulo Auto; queda pendiente hasta encarar esa integración.
 - **`clearCompleted()` borra fila por fila.** "Limpiar completadas" hace `$query->get()->each->delete()`: hidrata cada tarea completada a modelo y dispara un `DELETE` por fila. Ningún modelo tiene hooks de `deleting` que necesiten trabajo por fila, así que puede ser un único `$query->delete()` masivo. Para quien acumuló cientos de completadas es una ráfaga de escrituras evitable.
 - **`reorder()` reescribe toda la lista.** Cada mover-arriba/abajo trae la lista activa completa, ordena en PHP y hace un `UPDATE` de `position` por cada fila. Un swap de dos filas alcanza; hoy es una ráfaga de escrituras por cada clic de reordenar.
