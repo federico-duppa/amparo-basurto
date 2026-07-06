@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\FormatsMoney;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Database\Factories\MaintenanceItemFactory;
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class MaintenanceItem extends Model
 {
+    use FormatsMoney;
+
     /** @use HasFactory<MaintenanceItemFactory> */
     use HasFactory;
 
@@ -86,8 +89,8 @@ class MaintenanceItem extends Model
                 : '';
 
             $parts[] = $remainingKm < 0
-                ? 'te pasaste por '.self::km(abs($remainingKm))
-                : 'faltan '.self::km($remainingKm).$estimate;
+                ? 'te pasaste por '.$this->km(abs($remainingKm))
+                : 'faltan '.$this->km($remainingKm).$estimate;
         }
 
         if ($this->interval_months) {
@@ -105,7 +108,7 @@ class MaintenanceItem extends Model
                 'rank' => 2,
                 'urgency' => PHP_INT_MAX,
                 'headline' => 'Al día',
-                'detail' => 'Último: '.$last->performed_on->format('d/m/Y').' · '.self::km($last->mileage).'.',
+                'detail' => 'Último: '.$last->performed_on->format('d/m/Y').' · '.$this->km($last->mileage).'.',
             ];
         }
 
@@ -137,11 +140,6 @@ class MaintenanceItem extends Model
             'headline' => $headline,
             'detail' => $prefix.implode(' · ', $parts).'.',
         ];
-    }
-
-    private static function km(int $n): string
-    {
-        return number_format($n, 0, ',', '.').' km';
     }
 
     /**

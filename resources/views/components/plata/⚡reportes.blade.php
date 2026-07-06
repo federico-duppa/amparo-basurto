@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Concerns\FormatsMoney;
 use App\Models\Expense;
 use App\Models\InflationRate;
 use App\Support\Lens;
@@ -10,6 +11,8 @@ use Livewire\Component;
 
 new #[Title('Reportes')] class extends Component
 {
+    use FormatsMoney;
+
     public string $fx = 'ars';
 
     public string $tiempo = 'nominal';
@@ -92,10 +95,6 @@ new #[Title('Reportes')] class extends Component
         return $this->lens->tiempo === 'real' && InflationRate::query()->doesntExist();
     }
 
-    public function plata(int|float|string|null $value, string $currency = 'ARS'): string
-    {
-        return ($currency === 'ARS' ? '$' : 'US$').number_format((float) $value, 2, ',', '.');
-    }
 };
 ?>
 

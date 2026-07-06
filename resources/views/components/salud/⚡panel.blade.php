@@ -1,8 +1,8 @@
 <?php
 
+use App\Livewire\Concerns\SharesWithMembers;
 use App\Models\HealthEntry;
 use App\Models\HealthRecord;
-use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -11,11 +11,16 @@ use Livewire\Component;
 
 new #[Title('Salud')] class extends Component
 {
+    use SharesWithMembers;
+
     /** Entradas del timeline visibles por página; "Ver más" agranda la ventana. */
     private const ENTRIES_PAGE = 20;
 
     // Historia seleccionada (null hasta que exista alguna).
     public ?int $recordId = null;
+
+    /** Caché de requireRecord() dentro del mismo request. */
+    private ?HealthRecord $requiredRecord = null;
 
     // Alta de una historia clínica.
     public bool $addingRecord = false;
@@ -202,46 +207,14 @@ new #[Title('Salud')] class extends Component
 
     // --- Compartir ------------------------------------------------------------
 
-    public function share(): void
+    protected function shareableOwned(): HealthRecord
     {
-        $record = $this->requireOwnedRecord();
-
-        $this->shareUsername = strtolower(trim($this->shareUsername));
-
-        $this->validate([
-            'shareUsername' => ['required', 'string', 'max:50'],
-        ], [
-            'shareUsername.required' => 'Decime el usuario de la persona con quien la compartís.',
-        ]);
-
-        $user = User::where('username', $this->shareUsername)->first();
-
-        if (! $user) {
-            $this->addError('shareUsername', 'No encontré a nadie con ese usuario.');
-
-            return;
-        }
-
-        if ($record->isOwnedBy($user)) {
-            $this->addError('shareUsername', 'Esa historia ya es tuya.');
-
-            return;
-        }
-
-        if ($record->members()->whereKey($user->id)->exists()) {
-            $this->addError('shareUsername', 'Ya la estás compartiendo con esa persona.');
-
-            return;
-        }
-
-        $record->members()->attach($user->id);
-
-        $this->reset('shareUsername');
+        return $this->requireOwnedRecord();
     }
 
-    public function unshare(int $userId): void
+    protected function shareableNoun(): array
     {
-        $this->requireOwnedRecord()->members()->detach($userId);
+        return ['noun' => 'historia', 'genero' => 'f'];
     }
 
     // --- Entradas del timeline --------------------------------------------------
@@ -341,10 +314,11 @@ new #[Title('Salud')] class extends Component
     /**
      * Historia a la que el usuario tiene acceso (propia o compartida).
      * Cualquier persona con acceso opera el día a día: ficha y entradas.
+     * Memoizado por request: varias acciones lo resuelven en el mismo render.
      */
     private function requireRecord(): HealthRecord
     {
-        return auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
+        return $this->requiredRecord ??= auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
     }
 
     /**

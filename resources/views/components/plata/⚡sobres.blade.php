@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Concerns\FormatsMoney;
 use App\Models\Envelope;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -9,6 +10,8 @@ use Livewire\Component;
 
 new #[Title('Sobres')] class extends Component
 {
+    use FormatsMoney;
+
     public bool $creating = false;
 
     public string $name = '';
@@ -77,10 +80,6 @@ new #[Title('Sobres')] class extends Component
         return auth()->user()->envelopes()->withFinancials()->orderBy('name')->get();
     }
 
-    public function plata(int|float|string|null $value, string $currency = 'ARS'): string
-    {
-        return ($currency === 'ARS' ? '$' : 'US$').number_format((float) $value, 2, ',', '.');
-    }
 };
 ?>
 

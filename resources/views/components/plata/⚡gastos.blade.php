@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Concerns\FormatsMoney;
 use App\Models\Envelope;
 use App\Support\MarketData;
 use Illuminate\Support\Carbon;
@@ -11,6 +12,8 @@ use Livewire\Component;
 
 new #[Title('Plata')] class extends Component
 {
+    use FormatsMoney;
+
     public string $description = '';
 
     public string $category = '';
@@ -109,7 +112,7 @@ new #[Title('Plata')] class extends Component
         $this->editingId = $expense->id;
         $this->description = $expense->description;
         $this->category = $expense->category;
-        $this->amount = rtrim(rtrim((string) $expense->amount, '0'), '.');
+        $this->amount = $this->cleanDecimal($expense->amount);
         $this->currency = $expense->currency;
         $this->spentOn = $expense->spent_on->format('Y-m-d');
         $this->envelopeId = $expense->envelope_id === null ? '' : (string) $expense->envelope_id;
@@ -258,10 +261,6 @@ new #[Title('Plata')] class extends Component
             ->pluck('total', 'currency');
     }
 
-    public function plata(int|float|string|null $value, string $currency = 'ARS'): string
-    {
-        return ($currency === 'ARS' ? '$' : 'US$').number_format((float) $value, 2, ',', '.');
-    }
 };
 ?>
 

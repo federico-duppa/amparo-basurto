@@ -1,6 +1,7 @@
 <?php
 
-use App\Models\User;
+use App\Livewire\Concerns\SharesWithMembers;
+use App\Models\Concerns\FormatsMoney;
 use App\Models\Vehicle;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -12,6 +13,9 @@ use Livewire\Component;
 
 new #[Title('Auto')] class extends Component
 {
+    use FormatsMoney;
+    use SharesWithMembers;
+
     /** Cargas de combustible visibles por página; "Ver más" agranda la ventana. */
     private const FUEL_PAGE = 20;
 
@@ -23,6 +27,9 @@ new #[Title('Auto')] class extends Component
 
     // Auto seleccionado (null hasta que exista alguno).
     public ?int $vehicleId = null;
+
+    /** Caché de requireVehicle() dentro del mismo request. */
+    private ?Vehicle $requiredVehicle = null;
 
     // Alta de auto (con autos ya cargados el formulario se abre a pedido).
     public bool $addingVehicle = false;
@@ -244,46 +251,14 @@ new #[Title('Auto')] class extends Component
 
     // --- Compartir --------------------------------------------------------
 
-    public function share(): void
+    protected function shareableOwned(): Vehicle
     {
-        $vehicle = $this->requireOwnedVehicle();
-
-        $this->shareUsername = strtolower(trim($this->shareUsername));
-
-        $this->validate([
-            'shareUsername' => ['required', 'string', 'max:50'],
-        ], [
-            'shareUsername.required' => 'Decime el usuario de la persona con quien lo compartís.',
-        ]);
-
-        $user = User::where('username', $this->shareUsername)->first();
-
-        if (! $user) {
-            $this->addError('shareUsername', 'No encontré a nadie con ese usuario.');
-
-            return;
-        }
-
-        if ($vehicle->isOwnedBy($user)) {
-            $this->addError('shareUsername', 'Ese vehículo ya es tuyo.');
-
-            return;
-        }
-
-        if ($vehicle->members()->whereKey($user->id)->exists()) {
-            $this->addError('shareUsername', 'Ya lo estás compartiendo con esa persona.');
-
-            return;
-        }
-
-        $vehicle->members()->attach($user->id);
-
-        $this->reset('shareUsername');
+        return $this->requireOwnedVehicle();
     }
 
-    public function unshare(int $userId): void
+    protected function shareableNoun(): array
     {
-        $this->requireOwnedVehicle()->members()->detach($userId);
+        return ['noun' => 'vehículo', 'genero' => 'm'];
     }
 
     /**
@@ -451,7 +426,7 @@ new #[Title('Auto')] class extends Component
         $this->editingRecordId = $record->id;
         $this->editRecordDate = $record->performed_on->format('Y-m-d');
         $this->editRecordMileage = $record->mileage;
-        $this->editRecordCost = $record->cost === null ? null : rtrim(rtrim((string) $record->cost, '0'), '.');
+        $this->editRecordCost = $record->cost === null ? null : $this->cleanDecimal($record->cost);
         $this->editRecordNote = (string) $record->note;
         $this->resetValidation();
     }
@@ -538,7 +513,7 @@ new #[Title('Auto')] class extends Component
         $this->editingFuelId = $log->id;
         $this->editFuelDate = $log->filled_on->format('Y-m-d');
         $this->editFuelMileage = $log->mileage;
-        $this->editFuelCost = $log->cost === null ? null : rtrim(rtrim((string) $log->cost, '0'), '.');
+        $this->editFuelCost = $log->cost === null ? null : $this->cleanDecimal($log->cost);
         $this->resetValidation();
     }
 
@@ -752,10 +727,11 @@ new #[Title('Auto')] class extends Component
     /**
      * Auto al que el usuario tiene acceso (propio o compartido). Cualquier
      * persona con acceso puede cargar mantenimientos y combustible.
+     * Memoizado por request: varias acciones lo resuelven en el mismo render.
      */
     private function requireVehicle(): Vehicle
     {
-        return auth()->user()->accessibleVehicles()->findOrFail($this->vehicleId);
+        return $this->requiredVehicle ??= auth()->user()->accessibleVehicles()->findOrFail($this->vehicleId);
     }
 
     /**
@@ -765,16 +741,6 @@ new #[Title('Auto')] class extends Component
     private function requireOwnedVehicle(): Vehicle
     {
         return auth()->user()->vehicles()->findOrFail($this->vehicleId);
-    }
-
-    public function pesos(int|string|null $value): string
-    {
-        return '$'.number_format((float) $value, 2, ',', '.');
-    }
-
-    public function km(int|string|null $value): string
-    {
-        return number_format((int) $value, 0, ',', '.').' km';
     }
 
     #[Computed]

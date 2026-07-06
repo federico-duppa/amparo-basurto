@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\SharesWithMembers;
 use App\Models\Project;
 use App\Models\Subtask;
 use App\Models\Tag;
@@ -17,6 +18,7 @@ use Livewire\WithPagination;
 
 new #[Title('Tareas')] class extends Component
 {
+    use SharesWithMembers;
     use WithPagination;
 
     private const PER_PAGE = 25;
@@ -596,47 +598,18 @@ new #[Title('Tareas')] class extends Component
 
     // --- Compartir proyecto ----------------------------------------------
 
-    public function share(): void
+    protected function shareableOwned(): Project
     {
-        $project = $this->requireOwnedProject($this->activeProjectId);
-
-        $this->shareUsername = strtolower(trim($this->shareUsername));
-
-        $this->validate([
-            'shareUsername' => ['required', 'string', 'max:50'],
-        ], [
-            'shareUsername.required' => 'Decime el usuario de la persona con quien lo compartís.',
-        ]);
-
-        $user = \App\Models\User::where('username', $this->shareUsername)->first();
-
-        if (! $user) {
-            $this->addError('shareUsername', 'No encontré a nadie con ese usuario.');
-
-            return;
-        }
-
-        if ($project->isOwnedBy($user)) {
-            $this->addError('shareUsername', 'Ese proyecto ya es tuyo.');
-
-            return;
-        }
-
-        if ($project->members()->whereKey($user->id)->exists()) {
-            $this->addError('shareUsername', 'Ya lo estás compartiendo con esa persona.');
-
-            return;
-        }
-
-        $project->members()->attach($user->id);
-
-        $this->reset('shareUsername');
-        unset($this->projects);
+        return $this->requireOwnedProject($this->activeProjectId);
     }
 
-    public function unshare(int $userId): void
+    protected function shareableNoun(): array
     {
-        $this->requireOwnedProject($this->activeProjectId)->members()->detach($userId);
+        return ['noun' => 'proyecto', 'genero' => 'm'];
+    }
+
+    protected function afterShareChange(): void
+    {
         unset($this->projects);
     }
 
