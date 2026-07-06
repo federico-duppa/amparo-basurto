@@ -21,6 +21,9 @@ new class extends Component
     #[Locked]
     public int $recordId;
 
+    /** Caché de requireRecord() dentro del mismo request. */
+    private ?HealthRecord $requiredRecord = null;
+
     // Tipo elegido: define qué evolución se ve y qué se anota.
     public string $selectedType = 'peso';
 
@@ -99,9 +102,10 @@ new class extends Component
         $this->measurementsLimit += self::MEASUREMENTS_PAGE;
     }
 
+    /** Memoizado por request: mount(), latestByType() e historyWindow() lo llaman en el mismo render. */
     private function requireRecord(): HealthRecord
     {
-        return auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
+        return $this->requiredRecord ??= auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
     }
 
     /**

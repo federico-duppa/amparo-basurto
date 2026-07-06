@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -67,9 +68,7 @@ class User extends Authenticatable
      */
     public function accessibleProjects(): Builder
     {
-        return Project::query()->where(fn (Builder $query) => $query
-            ->where('projects.user_id', $this->id)
-            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+        return $this->accessibleOwnedOrShared(Project::class, 'projects');
     }
 
     /**
@@ -116,9 +115,7 @@ class User extends Authenticatable
      */
     public function accessibleVehicles(): Builder
     {
-        return Vehicle::query()->where(fn (Builder $query) => $query
-            ->where('vehicles.user_id', $this->id)
-            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+        return $this->accessibleOwnedOrShared(Vehicle::class, 'vehicles');
     }
 
     /**
@@ -150,9 +147,7 @@ class User extends Authenticatable
      */
     public function accessibleHealthRecords(): Builder
     {
-        return HealthRecord::query()->where(fn (Builder $query) => $query
-            ->where('health_records.user_id', $this->id)
-            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+        return $this->accessibleOwnedOrShared(HealthRecord::class, 'health_records');
     }
 
     /**
@@ -204,9 +199,7 @@ class User extends Authenticatable
      */
     public function accessibleShoppingLists(): Builder
     {
-        return ShoppingList::query()->where(fn (Builder $query) => $query
-            ->where('shopping_lists.user_id', $this->id)
-            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
+        return $this->accessibleOwnedOrShared(ShoppingList::class, 'shopping_lists');
     }
 
     /**
@@ -218,6 +211,23 @@ class User extends Authenticatable
     public function frequentItems(): HasMany
     {
         return $this->hasMany(FrequentItem::class);
+    }
+
+    /**
+     * Query "propio ∪ compartido" que repiten los `accessible*()`: las filas
+     * de $model cuyo `user_id` sea este usuario, más las que llegan por la
+     * relación `members()` de la pivote de compartir. Centraliza la regla de
+     * acceso para que las cuatro copias (Project, Vehicle, HealthRecord,
+     * ShoppingList) no se desalineen.
+     *
+     * @param  class-string<Model>  $model
+     * @return Builder<Model>
+     */
+    private function accessibleOwnedOrShared(string $model, string $table): Builder
+    {
+        return $model::query()->where(fn (Builder $query) => $query
+            ->where("{$table}.user_id", $this->id)
+            ->orWhereHas('members', fn (Builder $members) => $members->whereKey($this->id)));
     }
 
     /**

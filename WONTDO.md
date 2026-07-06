@@ -23,3 +23,7 @@ Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es 
 ## Auto (`/auto`)
 
 - **Litros y consumo en las cargas de combustible.** Las cargas registran costo, no volumen; el módulo no calcula rendimiento.
+
+## Técnico (mantenimiento y performance)
+
+- **Renumerar migraciones con timestamp duplicado.** Hay cuatro pares de migraciones que comparten prefijo (`2026_07_04_165025`, `2026_07_05_130000`, `2026_07_05_130001`, `2026_07_05_140000`); el orden entre ellas queda librado al alfabético del nombre de archivo. Se evaluó renumerarlas, pero el deploy es automático en cada push a `main` (Laravel Cloud) y estas migraciones ya corrieron en producción: Laravel identifica cada migración por su nombre de archivo en la tabla `migrations`, así que renombrarlas haría que el próximo deploy las tratara como nuevas y fallara (tabla/columna ya existe). Además se confirmó que ningún par tiene una dependencia cruzada real entre sí (las dependencias entre tablas están cubiertas por el timestamp del grupo anterior), así que el orden alfabético actual es seguro aunque no sea explícito. No renombrar migraciones ya deployadas.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\SharesWithMembers;
 use App\Models\FrequentItem;
 use App\Models\ShoppingList;
 use App\Models\User;
@@ -10,6 +11,8 @@ use Livewire\Component;
 
 new #[Title('Compras')] class extends Component
 {
+    use SharesWithMembers;
+
     // Lista abierta (null hasta que exista alguna).
     public ?int $listId = null;
 
@@ -206,46 +209,14 @@ new #[Title('Compras')] class extends Component
 
     // --- Compartir ---------------------------------------------------------
 
-    public function share(): void
+    protected function shareableOwned(): ShoppingList
     {
-        $list = $this->requireOwnedList();
-
-        $this->shareUsername = strtolower(trim($this->shareUsername));
-
-        $this->validate([
-            'shareUsername' => ['required', 'string', 'max:50'],
-        ], [
-            'shareUsername.required' => 'Decime el usuario de la persona con quien la compartís.',
-        ]);
-
-        $user = User::where('username', $this->shareUsername)->first();
-
-        if (! $user) {
-            $this->addError('shareUsername', 'No encontré a nadie con ese usuario.');
-
-            return;
-        }
-
-        if ($list->isOwnedBy($user)) {
-            $this->addError('shareUsername', 'Esa lista ya es tuya.');
-
-            return;
-        }
-
-        if ($list->members()->whereKey($user->id)->exists()) {
-            $this->addError('shareUsername', 'Ya la estás compartiendo con esa persona.');
-
-            return;
-        }
-
-        $list->members()->attach($user->id);
-
-        $this->reset('shareUsername');
+        return $this->requireOwnedList();
     }
 
-    public function unshare(int $userId): void
+    protected function shareableNoun(): array
     {
-        $this->requireOwnedList()->members()->detach($userId);
+        return ['noun' => 'lista', 'genero' => 'f'];
     }
 
     // --- Helpers -----------------------------------------------------------

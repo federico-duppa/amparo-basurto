@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Concerns\FormatsMoney;
 use App\Models\Envelope;
 use App\Models\EnvelopeMovement;
 use App\Models\Expense;
@@ -14,6 +15,8 @@ use Livewire\Component;
 
 new #[Title('Sobre')] class extends Component
 {
+    use FormatsMoney;
+
     private const TIMELINE_PAGE = 20;
 
     public int $envelopeId;
@@ -47,16 +50,8 @@ new #[Title('Sobre')] class extends Component
     public function mount(int $envelope): void
     {
         $this->envelopeId = $envelope;
-        $this->requireEnvelope();
+        $this->envelope; // dispara el 404 temprano si el sobre no es del usuario.
         $this->movementDate = now()->format('Y-m-d');
-    }
-
-    /**
-     * Sobre propio. Lo ajeno responde 404: ni siquiera confirma que existe.
-     */
-    private function requireEnvelope(): Envelope
-    {
-        return auth()->user()->envelopes()->findOrFail($this->envelopeId);
     }
 
     private function validateMovement(): void
@@ -77,7 +72,7 @@ new #[Title('Sobre')] class extends Component
 
     public function aporte(): void
     {
-        $envelope = $this->requireEnvelope();
+        $envelope = $this->envelope;
 
         $this->validateMovement();
 
@@ -86,7 +81,7 @@ new #[Title('Sobre')] class extends Component
 
     public function retiro(): void
     {
-        $envelope = $this->requireEnvelope();
+        $envelope = $this->envelope;
 
         $this->validateMovement();
 
@@ -116,7 +111,7 @@ new #[Title('Sobre')] class extends Component
 
     public function transfer(): void
     {
-        $source = $this->requireEnvelope();
+        $source = $this->envelope;
 
         $this->validate([
             'transferAmount' => ['required', 'numeric', 'gt:0'],
@@ -191,7 +186,7 @@ new #[Title('Sobre')] class extends Component
 
     public function startEditingMovement(int $id): void
     {
-        $movement = $this->requireEnvelope()->movements()->findOrFail($id);
+        $movement = $this->envelope->movements()->findOrFail($id);
 
         // Las transferencias no se editan (son un par vinculado con conversión):
         // se eliminan enteras y se rehacen.
@@ -200,7 +195,7 @@ new #[Title('Sobre')] class extends Component
         }
 
         $this->editingMovementId = $movement->id;
-        $this->editMovementAmount = rtrim(rtrim((string) $movement->amount, '0'), '.');
+        $this->editMovementAmount = $this->cleanDecimal($movement->amount);
         $this->editMovementDate = $movement->moved_on->format('Y-m-d');
         $this->editMovementNote = (string) $movement->note;
         $this->resetValidation();
@@ -208,7 +203,7 @@ new #[Title('Sobre')] class extends Component
 
     public function updateMovement(): void
     {
-        $envelope = $this->requireEnvelope();
+        $envelope = $this->envelope;
         $movement = $envelope->movements()->findOrFail($this->editingMovementId);
 
         if ($movement->transfer_group !== null) {
@@ -263,7 +258,7 @@ new #[Title('Sobre')] class extends Component
 
     public function deleteMovement(int $id): void
     {
-        $movement = $this->requireEnvelope()->movements()->findOrFail($id);
+        $movement = $this->envelope->movements()->findOrFail($id);
 
         if ($movement->transfer_group !== null) {
             // Una transferencia se borra entera: las dos patas, en ambos sobres.
@@ -281,18 +276,18 @@ new #[Title('Sobre')] class extends Component
 
     public function startEditingTarget(): void
     {
-        $envelope = $this->requireEnvelope();
+        $envelope = $this->envelope;
 
         $this->targetAmountInput = $envelope->target_amount === null
             ? ''
-            : rtrim(rtrim((string) $envelope->target_amount, '0'), '.');
+            : $this->cleanDecimal($envelope->target_amount);
         $this->editingTarget = true;
         $this->resetValidation();
     }
 
     public function updateTarget(): void
     {
-        $envelope = $this->requireEnvelope();
+        $envelope = $this->envelope;
 
         $this->validate([
             'targetAmountInput' => ['nullable', 'numeric', 'gt:0'],
@@ -321,7 +316,6 @@ new #[Title('Sobre')] class extends Component
                 : ($nuevo === null ? null : $envelope->target_month),
         ]);
 
-        unset($this->envelope);
         $this->cancelEditingTarget();
     }
 
@@ -333,15 +327,19 @@ new #[Title('Sobre')] class extends Component
 
     public function deleteEnvelope(): void
     {
-        $this->requireEnvelope()->delete();
+        $this->envelope->delete();
 
         $this->redirect(route('plata.sobres'), navigate: true);
     }
 
+    /**
+     * Sobre propio. Lo ajeno responde 404: ni siquiera confirma que existe.
+     * Memoizado por request: varias acciones lo resuelven en el mismo render.
+     */
     #[Computed]
     public function envelope(): Envelope
     {
-        return $this->requireEnvelope();
+        return auth()->user()->envelopes()->findOrFail($this->envelopeId);
     }
 
     #[Computed]
@@ -431,10 +429,6 @@ new #[Title('Sobre')] class extends Component
             ->values();
     }
 
-    public function plata(int|float|string|null $value, string $currency = 'ARS'): string
-    {
-        return ($currency === 'ARS' ? '$' : 'US$').number_format((float) $value, 2, ',', '.');
-    }
 };
 ?>
 

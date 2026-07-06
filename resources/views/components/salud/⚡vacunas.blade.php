@@ -16,6 +16,9 @@ new class extends Component
     #[Locked]
     public int $recordId;
 
+    /** Caché de requireRecord() dentro del mismo request. */
+    private ?HealthRecord $requiredRecord = null;
+
     // Alta de una aplicación.
     public bool $addingVaccine = false;
     public string $vaccineName = '';
@@ -122,9 +125,10 @@ new class extends Component
         }
     }
 
+    /** Memoizado por request: se llama varias veces en el mismo render. */
     private function requireRecord(): HealthRecord
     {
-        return auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
+        return $this->requiredRecord ??= auth()->user()->accessibleHealthRecords()->findOrFail($this->recordId);
     }
 
     /**
