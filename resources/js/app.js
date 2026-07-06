@@ -219,4 +219,150 @@ document.addEventListener('alpine:init', () => {
             });
         },
     }));
+
+    // Tablero de Queens: toda la interacción (marcar, poner reina, detectar
+    // conflictos, cronómetro y victoria) vive en el cliente. El servidor solo
+    // arma el tablero y lo pasa por config.regions; acá nunca se conoce la
+    // solución, así que no hay forma de "espiarla" desde el navegador.
+    Alpine.data('queens', (config = {}) => ({
+        size: 8,
+        regions: config.regions || [],
+        marks: [], // 0 vacía · 1 marca (X) · 2 reina
+        badCells: new Set(),
+        won: false,
+        elapsed: 0,
+        startedAt: null,
+        timer: null,
+
+        init() {
+            this.reset();
+        },
+
+        destroy() {
+            this.stopTimer();
+        },
+
+        // Vacía el tablero sin cambiar el puzzle.
+        reset() {
+            this.marks = Array.from({ length: this.size }, () => Array(this.size).fill(0));
+            this.badCells = new Set();
+            this.won = false;
+            this.elapsed = 0;
+            this.startedAt = null;
+            this.stopTimer();
+        },
+
+        startTimer() {
+            if (this.timer) return;
+            this.startedAt = Date.now() - this.elapsed * 1000;
+            this.timer = setInterval(() => {
+                this.elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
+            }, 250);
+        },
+
+        stopTimer() {
+            if (this.timer) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
+        },
+
+        // Un toque cicla vacía → marca → reina → vacía (como el juego original).
+        cycle(r, c) {
+            if (this.won) return;
+            if (!this.startedAt) this.startTimer();
+            this.marks[r][c] = (this.marks[r][c] + 1) % 3;
+            this.check();
+        },
+
+        queenCount() {
+            let n = 0;
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    if (this.marks[r][c] === 2) n++;
+                }
+            }
+            return n;
+        },
+
+        // Marca en rojo toda reina que rompa una regla: misma fila, columna o
+        // color que otra, o pegada a otra (incluida la diagonal).
+        check() {
+            const queens = [];
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    if (this.marks[r][c] === 2) queens.push([r, c]);
+                }
+            }
+
+            const bad = new Set();
+            for (let i = 0; i < queens.length; i++) {
+                for (let j = i + 1; j < queens.length; j++) {
+                    const [r1, c1] = queens[i];
+                    const [r2, c2] = queens[j];
+                    const clash =
+                        r1 === r2 ||
+                        c1 === c2 ||
+                        this.regions[r1][c1] === this.regions[r2][c2] ||
+                        (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1);
+                    if (clash) {
+                        bad.add(r1 + ',' + c1);
+                        bad.add(r2 + ',' + c2);
+                    }
+                }
+            }
+
+            this.badCells = bad;
+            this.won = bad.size === 0 && queens.length === this.size;
+            if (this.won) this.stopTimer();
+        },
+
+        isBad(r, c) {
+            return this.badCells.has(r + ',' + c);
+        },
+
+        // Fondo por región vía las variables --color-q1..q8 del tema.
+        cellBg(r, c) {
+            return 'background-color: var(--color-q' + (this.regions[r][c] + 1) + ')';
+        },
+
+        // Bordes: hairline dentro de una región, trazo cuero entre regiones y en
+        // el marco. Así cada color se lee como un bloque, sin depender solo del tono.
+        cellBorder(r, c) {
+            const mine = this.regions[r][c];
+            const same = (a, b) =>
+                a >= 0 && a < this.size && b >= 0 && b < this.size && this.regions[a][b] === mine;
+            const line = 'color-mix(in srgb, var(--color-cuero) 16%, transparent)';
+            const edge = 'var(--color-cuero)';
+            const side = (ok) => (ok ? '1px solid ' + line : '2px solid ' + edge);
+            return [
+                'border-top:' + side(same(r - 1, c)),
+                'border-right:' + side(same(r, c + 1)),
+                'border-bottom:' + side(same(r + 1, c)),
+                'border-left:' + side(same(r, c - 1)),
+            ].join(';');
+        },
+
+        cellLabel(r, c) {
+            const estado = this.marks[r][c] === 2 ? 'reina' : this.marks[r][c] === 1 ? 'marcada' : 'vacía';
+            return 'Fila ' + (r + 1) + ', columna ' + (c + 1) + ', ' + estado;
+        },
+
+        get timeLabel() {
+            const m = Math.floor(this.elapsed / 60);
+            const s = this.elapsed % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        },
+
+        // Celdas en orden (fila, columna) para un solo x-for sobre el tablero.
+        get cellList() {
+            const out = [];
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    out.push({ r, c });
+                }
+            }
+            return out;
+        },
+    }));
 });

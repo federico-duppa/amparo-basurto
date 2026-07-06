@@ -21,6 +21,9 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/plata/sobres/{envelope}', 'plata.sobre')->name('plata.sobre')->whereNumber('envelope');
     Route::livewire('/plata/reportes', 'plata.reportes')->name('plata.reportes');
 
+    Route::livewire('/juegos', 'juegos.panel')->name('juegos');
+    Route::livewire('/juegos/queens', 'juegos.queens')->name('juegos.queens');
+
     Route::post('/salir', function (Request $request) {
         Auth::logout();
         $request->session()->invalidate();
