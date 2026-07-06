@@ -19,8 +19,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 - **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
-- **Índice compuesto de vencimientos en `health_reminders` y `health_vaccines`.** Las tablas solo traen los índices de FK. `health_measurements` ya trae `(health_record_id, type, measured_on)` y `vehicle_documents` (el par de Auto) con `(vehicle_id, expires_on)`, pero el `(health_record_id, expires_on)` equivalente para recordatorios y vacunas quedó afuera de la migración de índices. Agregarlo por consistencia y para no depender de scans a medida que crece la historia.
-- **`latestByType()` hace una query por tipo de medición.** `salud.mediciones` recorre `HealthMeasurement::TYPES` (peso, presión, glucemia, temperatura…) y dispara un `SELECT ... LIMIT 1` por cada tipo en cada render del panel. Resolverlo con una sola query agrupada (último registro por tipo) en vez de N consultas.
 
 ## Compras (`/compras`)
 
@@ -38,10 +36,6 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 
 - **Revisión guiada por Amparo.** Repaso semanal conversado de lo que quedó viejo ("Esta quedó de hace tres semanas, ¿la seguís queriendo hacer?").
 - **Tareas desde otros módulos.** Que un vencimiento de Auto ("la VTV vence en 15 días") pueda generar una tarea con fecha. Requiere tocar el módulo Auto; queda pendiente hasta encarar esa integración.
-- **`clearCompleted()` borra fila por fila.** "Limpiar completadas" hace `$query->get()->each->delete()`: hidrata cada tarea completada a modelo y dispara un `DELETE` por fila. Ningún modelo tiene hooks de `deleting` que necesiten trabajo por fila, así que puede ser un único `$query->delete()` masivo. Para quien acumuló cientos de completadas es una ráfaga de escrituras evitable.
-- **`reorder()` reescribe toda la lista.** Cada mover-arriba/abajo trae la lista activa completa, ordena en PHP y hace un `UPDATE` de `position` por cada fila. Un swap de dos filas alcanza; hoy es una ráfaga de escrituras por cada clic de reordenar.
-- **Índice `(user_id, status, completed_at)` para la vista "Lista".** Es la vista default y más usada (`user_id`, `completed_at IS NULL`, `status`, ordenada por Eisenhower + `position`). La migración de índices cubrió `(user_id, completed_at)` y `(user_id, due_date)` pero no el `status` que filtra esta vista.
-- **Limpieza de tags huérfanos solo cuando cambian los tags.** Hoy `tags()->doesntHave('todos')->delete()` corre en **cada** guardado/edición de tarea, aunque no se hayan tocado etiquetas. Ejecutarlo solo cuando la selección de tags cambió, para sacar trabajo del camino caliente de alta/edición.
 
 ## Técnico (mantenimiento y performance)
 
@@ -53,4 +47,4 @@ Deuda transversal de código y datos, no de producto. Va acá porque no pertenec
 - **Memoizar los helpers de scoping por request.** `requireRecord()`, `requireVehicle()` y `requireEnvelope()` corren un `accessible…()->findOrFail()` en cada llamada y no están memoizados; en un solo render se invocan varias veces (p. ej. `mediciones` los llama en `mount()`, `latestByType()` y `historyWindow()`). Rutearlos por la propiedad `#[Computed]` que ya existe (`record()`/`vehicle()`/`envelope()`) o cachear el modelo resuelto en la instancia elimina las consultas repetidas.
 - **Tests unitarios de la lógica de dominio de los modelos.** `tests/Unit/` solo cubre `Lens` y `NaturalDate`. Los cálculos más intrincados —`Envelope::balance()`/`currentTarget()` (indexación IPC)/`gap()`/`progress()`, `MaintenanceItem::status()` (km↔tiempo), `Vehicle::kmPerDay()`, `Todo::nextDueDate()`/`eisenhowerWeight()`— son puros y con muchos casos de tabla, pero solo se ejercitan indirectamente por los tests de componente. Sumar tests unitarios enfocados es cobertura barata y de bajo riesgo.
 - **Renumerar migraciones con timestamp duplicado.** Hay cuatro pares de migraciones que comparten prefijo (`2026_07_04_165025`, `2026_07_05_130000`, `2026_07_05_130001`, `2026_07_05_140000`). Entre migraciones con el mismo prefijo el orden queda librado al alfabético del nombre de archivo, que es frágil. Renumerar para tener orden determinístico.
-- **CI: `tests.yml` no corre en push a `main`.** El workflow dispara en push a `master` y `*.x`, pero la rama default es `main`; los push directos a `main` no corren la suite (solo los pull requests la corren). Corregir los triggers para cubrir `main`. De paso, sumar `vendor/bin/pint --test` y evaluar análisis estático (Larastan/PHPStan) al pipeline, que hoy no existen.
+- **Análisis estático (Larastan/PHPStan) en CI.** El workflow ya corre la suite y `pint --test`; falta evaluar sumar análisis estático al pipeline.

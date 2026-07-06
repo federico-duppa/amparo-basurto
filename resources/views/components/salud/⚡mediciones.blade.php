@@ -3,6 +3,7 @@
 use App\Models\HealthMeasurement;
 use App\Models\HealthRecord;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -111,15 +112,25 @@ new class extends Component
     #[Computed]
     public function latestByType(): Collection
     {
-        $record = $this->requireRecord();
-
-        return collect(HealthMeasurement::TYPES)
-            ->map(fn ($config, $type) => $record->measurements()
-                ->where('type', $type)
-                ->orderByDesc('measured_on')
-                ->orderByDesc('id')
-                ->first())
-            ->filter();
+        // Una sola query para todos los tipos: queda la fila que no tiene otra
+        // más nueva del mismo tipo (por fecha y, a igual fecha, por id).
+        // Compatible con SQLite y Postgres.
+        return $this->requireRecord()->measurements()
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('health_measurements as later')
+                    ->whereColumn('later.health_record_id', 'health_measurements.health_record_id')
+                    ->whereColumn('later.type', 'health_measurements.type')
+                    ->where(function ($query) {
+                        $query->whereColumn('later.measured_on', '>', 'health_measurements.measured_on')
+                            ->orWhere(function ($query) {
+                                $query->whereColumn('later.measured_on', 'health_measurements.measured_on')
+                                    ->whereColumn('later.id', '>', 'health_measurements.id');
+                            });
+                    });
+            })
+            ->get()
+            ->keyBy('type');
     }
 
     /**
