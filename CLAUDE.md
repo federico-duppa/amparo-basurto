@@ -195,3 +195,4 @@ Cada módulo/sección tiene **su propio acento de color dentro de la misma palet
 | Finanzas — "Plata" (`/plata`) | Oliva seca | `#5C5233` (token `oliva`, 6.2:1 sobre crema) |
 | Salud — "Salud" (`/salud`) | Ciruela seca | `#5F4152` (token `ciruela`, 7.2:1 sobre crema) |
 | Compras — "Compras" (`/compras`) | Cobre / terracota | `#7A4522` (token `cobre`, 6.2:1 sobre crema) |
+| Juegos — "Juegos" (`/juegos`) | Pizarra | `#3E4A47` (token `pizarra`, 7.4:1 sobre crema) |

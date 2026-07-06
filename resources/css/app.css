@@ -26,6 +26,24 @@
     --color-oliva: #5c5233; /* módulo Plata (6.2:1 sobre crema) */
     --color-ciruela: #5f4152; /* módulo Salud (7.2:1 sobre crema) */
     --color-cobre: #7a4522; /* módulo Compras (6.2:1 sobre crema) */
+    --color-pizarra: #3e4a47; /* módulo Juegos (7.4:1 sobre crema) */
+}
+
+/* Tintes de región del tablero de Queens (8 tierras apagadas, mutuamente
+   distinguibles; cada una lleva el ícono de reina en cuero a ≥4.2:1). No son
+   colores de texto: son fondos de celda que el tablero aplica con var(--color-qN)
+   desde JS, sin clases utilitarias. Por eso van en un bloque `@theme static`: así
+   Tailwind las emite siempre a :root aunque ninguna utilidad las referencie. Ver
+   docs/juegos.md. */
+@theme static {
+    --color-q1: #d9c7a3; /* arena */
+    --color-q2: #c9a99b; /* greda */
+    --color-q3: #b9c4a0; /* salvia */
+    --color-q4: #9fbeb4; /* eucalipto */
+    --color-q5: #c3abbe; /* malva */
+    --color-q6: #e2ce8e; /* mostaza clara */
+    --color-q7: #d69c7e; /* terracota */
+    --color-q8: #aab0ae; /* piedra */
 }
 
 @layer base {

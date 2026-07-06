@@ -26,12 +26,12 @@
                     </a>
 
                     <ul class="flex items-stretch justify-around lg:flex-col lg:gap-1 lg:px-3">
-                        <li class="lg:w-full">
+                        <li class="flex-1 lg:w-full">
                             <a
                                 href="{{ route('todos') }}"
                                 wire:navigate
                                 @if (request()->routeIs('todos')) aria-current="page" @endif
-                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('todos') ? 'text-vino lg:bg-vino/10' : 'text-cuero/70 hover:text-cuero' }}"
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:px-3 lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('todos') ? 'text-vino lg:bg-vino/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
                                 {{-- Heroicon: clipboard-document-check (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
@@ -40,12 +40,12 @@
                                 <span class="text-xs font-medium lg:text-sm">Tareas</span>
                             </a>
                         </li>
-                        <li class="lg:w-full">
+                        <li class="flex-1 lg:w-full">
                             <a
                                 href="{{ route('auto') }}"
                                 wire:navigate
                                 @if (request()->routeIs('auto')) aria-current="page" @endif
-                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('auto') ? 'text-grafito lg:bg-grafito/10' : 'text-cuero/70 hover:text-cuero' }}"
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:px-3 lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('auto') ? 'text-grafito lg:bg-grafito/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
                                 {{-- Heroicon: wrench-screwdriver (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
@@ -54,12 +54,12 @@
                                 <span class="text-xs font-medium lg:text-sm">Auto</span>
                             </a>
                         </li>
-                        <li class="lg:w-full">
+                        <li class="flex-1 lg:w-full">
                             <a
                                 href="{{ route('salud') }}"
                                 wire:navigate
                                 @if (request()->routeIs('salud')) aria-current="page" @endif
-                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('salud') ? 'text-ciruela lg:bg-ciruela/10' : 'text-cuero/70 hover:text-cuero' }}"
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:px-3 lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('salud') ? 'text-ciruela lg:bg-ciruela/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
                                 {{-- Heroicon: heart (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
@@ -68,12 +68,12 @@
                                 <span class="text-xs font-medium lg:text-sm">Salud</span>
                             </a>
                         </li>
-                        <li class="lg:w-full">
+                        <li class="flex-1 lg:w-full">
                             <a
                                 href="{{ route('compras') }}"
                                 wire:navigate
                                 @if (request()->routeIs('compras')) aria-current="page" @endif
-                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('compras') ? 'text-cobre lg:bg-cobre/10' : 'text-cuero/70 hover:text-cuero' }}"
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:px-3 lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('compras') ? 'text-cobre lg:bg-cobre/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
                                 {{-- Heroicon: shopping-cart (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
@@ -82,18 +82,32 @@
                                 <span class="text-xs font-medium lg:text-sm">Compras</span>
                             </a>
                         </li>
-                        <li class="lg:w-full">
+                        <li class="flex-1 lg:w-full">
                             <a
                                 href="{{ route('plata.gastos') }}"
                                 wire:navigate
                                 @if (request()->routeIs('plata.*')) aria-current="page" @endif
-                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-5 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('plata.*') ? 'text-oliva lg:bg-oliva/10' : 'text-cuero/70 hover:text-cuero' }}"
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:px-3 lg:justify-start lg:gap-3 lg:rounded-sm {{ request()->routeIs('plata.*') ? 'text-oliva lg:bg-oliva/10' : 'text-cuero/70 hover:text-cuero' }}"
                             >
                                 {{-- Heroicon: banknotes (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
                                 </svg>
                                 <span class="text-xs font-medium lg:text-sm">Plata</span>
+                            </a>
+                        </li>
+                        <li class="flex-1 lg:w-full">
+                            <a
+                                href="{{ route('juegos') }}"
+                                wire:navigate
+                                @if (request()->routeIs('juegos*')) aria-current="page" @endif
+                                class="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 lg:min-h-11 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-sm lg:px-3 {{ request()->routeIs('juegos*') ? 'text-pizarra lg:bg-pizarra/10' : 'text-cuero/70 hover:text-cuero' }}"
+                            >
+                                {{-- Heroicon: puzzle-piece (outline) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0-.582-4.717.532.532 0 0 1 .533-.57v0c.355 0 .676.186.959.401.29.221.634.349 1.003.349 1.035 0 1.875-1.007 1.875-2.25s-.84-2.25-1.875-2.25c-.37 0-.713.128-1.003.349-.283.215-.604.401-.959.401v0a.656.656 0 0 1-.658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z" />
+                                </svg>
+                                <span class="text-xs font-medium lg:text-sm">Juegos</span>
                             </a>
                         </li>
                     </ul>

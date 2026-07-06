@@ -37,6 +37,13 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 - **Revisión guiada por Amparo.** Repaso semanal conversado de lo que quedó viejo ("Esta quedó de hace tres semanas, ¿la seguís queriendo hacer?").
 - **Tareas desde otros módulos.** Que un vencimiento de Auto ("la VTV vence en 15 días") pueda generar una tarea con fecha. Requiere tocar el módulo Auto; queda pendiente hasta encarar esa integración.
 
+## Juegos (`/juegos`)
+
+- **Más juegos en el catálogo.** El módulo está pensado para crecer; hoy solo tiene Queens.
+- **Guardar progreso y tiempos de Queens.** Hoy cada partida es de una sentada y no persiste nada. Sumar mejores tiempos / racha requiere un modelo por usuario (con el scoping de siempre).
+- **Puzzle del día en Queens.** Un tablero fijo por día, igual para todos, como el juego original. Necesita generación determinística por fecha (semilla), no el `shuffle`/`array_rand` actuales.
+- **Dificultad o tamaños de grilla.** Por ahora es fijo 8×8; se podrían ofrecer grillas más chicas/grandes.
+
 ## Técnico (mantenimiento y performance)
 
 Deuda transversal de código y datos, no de producto. Va acá porque no pertenece a un módulo puntual.
