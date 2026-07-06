@@ -233,6 +233,11 @@ document.addEventListener('alpine:init', () => {
         elapsed: 0,
         startedAt: null,
         timer: null,
+        // Gesto de deslizar para pintar cruces. mode: 'mark' pinta, 'erase' borra.
+        drag: { active: false, moved: false, mode: null, startR: 0, startC: 0 },
+        // Un deslizamiento termina con un click sintético sobre la celda inicial;
+        // esta bandera hace que ese click no cicle la casilla.
+        suppressClick: false,
 
         init() {
             this.reset();
@@ -273,6 +278,81 @@ document.addEventListener('alpine:init', () => {
             if (!this.startedAt) this.startTimer();
             this.marks[r][c] = (this.marks[r][c] + 1) % 3;
             this.check();
+        },
+
+        // --- Gesto de tocar / deslizar ---------------------------------------
+        // El toque (tap) y el teclado ciclan la casilla vía el click; deslizar
+        // pinta o borra cruces. Distinguimos uno de otro por si el dedo cambió
+        // de casilla entre pointerdown y pointerup.
+
+        onPointerDown(r, c) {
+            this.suppressClick = false;
+            if (this.won) return;
+            this.drag = { active: true, moved: false, mode: null, startR: r, startC: c };
+        },
+
+        onPointerMove(event) {
+            if (!this.drag.active || this.won) return;
+
+            const cell = this.cellFromPoint(event.clientX, event.clientY);
+            if (!cell) return;
+
+            const isStart = cell.r === this.drag.startR && cell.c === this.drag.startC;
+            if (isStart && ! this.drag.moved) return; // todavía no salió de la casilla inicial
+
+            if (!this.drag.moved) {
+                // Primer salto a otra casilla: esto es un deslizamiento. El modo
+                // lo fija la casilla donde arrancó (sobre cruz borra, si no pinta).
+                this.drag.moved = true;
+                if (!this.startedAt) this.startTimer();
+                this.drag.mode = this.marks[this.drag.startR][this.drag.startC] === 1 ? 'erase' : 'mark';
+                this.paint(this.drag.startR, this.drag.startC);
+            }
+
+            this.paint(cell.r, cell.c);
+        },
+
+        onPointerUp() {
+            if (!this.drag.active) return;
+            if (this.drag.moved) this.suppressClick = true; // fue deslizamiento, no toque
+            this.drag.active = false;
+        },
+
+        onPointerCancel() {
+            this.drag.active = false;
+            this.drag.moved = false;
+        },
+
+        // Click real (toque corto o teclado): cicla, salvo que venga de soltar un
+        // deslizamiento.
+        onCellClick(r, c) {
+            if (this.suppressClick) {
+                this.suppressClick = false;
+
+                return;
+            }
+            this.cycle(r, c);
+        },
+
+        // Pinta o borra una cruz sin tocar reinas ni casillas vacías en modo borrar.
+        paint(r, c) {
+            const state = this.marks[r][c];
+            if (this.drag.mode === 'mark' && state === 0) {
+                this.marks[r][c] = 1;
+            } else if (this.drag.mode === 'erase' && state === 1) {
+                this.marks[r][c] = 0;
+            }
+        },
+
+        // Casilla del tablero bajo un punto de la pantalla (para seguir el dedo).
+        cellFromPoint(x, y) {
+            const el = document.elementFromPoint(x, y);
+            if (!el) return null;
+            const btn = el.closest('[data-cell]');
+            if (!btn || !this.$root.contains(btn)) return null;
+            const [r, c] = btn.dataset.cell.split(',').map(Number);
+
+            return { r, c };
         },
 
         queenCount() {

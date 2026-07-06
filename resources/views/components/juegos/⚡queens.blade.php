@@ -58,16 +58,23 @@ new #[Title('Queens')] class extends Component
             </span>
         </div>
 
-        {{-- Tablero --}}
+        {{-- Tablero. Un toque cicla la casilla; deslizar el dedo pinta cruces
+             (o las borra, si arrancás sobre una). touch-none evita que el gesto
+             haga scroll de la página mientras marcás. --}}
         <div
-            class="grid grid-cols-8 select-none overflow-hidden rounded-sm touch-manipulation"
+            class="grid grid-cols-8 touch-none select-none overflow-hidden rounded-sm"
             role="grid"
             aria-label="Tablero de Queens, 8 por 8"
+            @pointermove="onPointerMove($event)"
+            @pointerup.window="onPointerUp()"
+            @pointercancel.window="onPointerCancel()"
         >
             <template x-for="cell in cellList" :key="cell.r + '-' + cell.c">
                 <button
                     type="button"
-                    @click="cycle(cell.r, cell.c)"
+                    :data-cell="cell.r + ',' + cell.c"
+                    @pointerdown="onPointerDown(cell.r, cell.c)"
+                    @click="onCellClick(cell.r, cell.c)"
                     :style="cellBg(cell.r, cell.c) + ';' + cellBorder(cell.r, cell.c)"
                     :aria-label="cellLabel(cell.r, cell.c)"
                     class="relative grid aspect-square w-full place-items-center focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-monte"
@@ -150,6 +157,7 @@ new #[Title('Queens')] class extends Component
                 <p>Poné una reina en cada fila, cada columna y cada color: ocho en total.</p>
                 <p>Dos reinas no pueden tocarse, ni siquiera en diagonal.</p>
                 <p>Un toque marca la casilla con una cruz (para descartarla), otro pone la reina y otro la deja limpia. Si una reina rompe una regla, la vas a ver en rojo.</p>
+                <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
             </div>
         </details>
     </div>
