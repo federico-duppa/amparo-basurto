@@ -93,6 +93,15 @@ new #[Title('Queens')] class extends Component {}; ?>
                         aria-hidden="true"
                     ></span>
 
+                    {{-- Aro de pista: ocre si "acá va una reina", teja si hay un error --}}
+                    <span
+                        x-show="isHint(cell.r, cell.c)"
+                        x-cloak
+                        :class="hintKind === 'error' ? 'ring-teja' : 'ring-ocre'"
+                        class="pointer-events-none absolute inset-0 z-10 animate-pulse ring-4 ring-inset"
+                        aria-hidden="true"
+                    ></span>
+
                     {{-- Marca (X): "acá no va reina". A mano o puesta por una reina. --}}
                     <svg
                         x-show="showCross(cell.r, cell.c)"
@@ -122,6 +131,21 @@ new #[Title('Queens')] class extends Component {}; ?>
             </template>
         </div>
 
+        {{-- Mensaje de la pista --}}
+        <p
+            x-show="hintMessage"
+            x-cloak
+            aria-live="polite"
+            :class="hintKind === 'error' ? 'text-teja' : 'text-ocre-oscuro'"
+            class="flex items-center gap-1.5 text-sm"
+        >
+            {{-- Heroicon: light-bulb (mini) --}}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0">
+                <path d="M10 1a6 6 0 0 0-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.75.75 0 0 0 .572.729 6.016 6.016 0 0 0 2.856 0A.75.75 0 0 0 12 15.1v-.644c0-1.013.763-1.956 1.815-2.825A6 6 0 0 0 10 1ZM8.863 17.414a.75.75 0 0 0-.226 1.483 9.066 9.066 0 0 0 2.726 0 .75.75 0 0 0-.226-1.483 7.553 7.553 0 0 1-2.274 0Z" />
+            </svg>
+            <span x-text="hintMessage"></span>
+        </p>
+
         {{-- Victoria --}}
         <div
             x-show="won"
@@ -133,9 +157,20 @@ new #[Title('Queens')] class extends Component {}; ?>
             <p class="mt-0.5 text-sm text-cuero/80">Tardaste <span x-text="timeLabel" class="tabular-nums">00:00</span>. Muy bien.</p>
         </div>
 
-        {{-- Controles --}}
+        {{-- Controles. Arriba las ayudas (pista, deshacer); abajo empezar de nuevo. --}}
         <div class="space-y-2">
             <div class="flex gap-2">
+                <button
+                    type="button"
+                    @click="pista()"
+                    class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-cuero/25 px-3 py-2.5 text-sm font-medium text-cuero hover:bg-cuero/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cuero"
+                >
+                    {{-- Heroicon: light-bulb (mini) --}}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
+                        <path d="M10 1a6 6 0 0 0-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.75.75 0 0 0 .572.729 6.016 6.016 0 0 0 2.856 0A.75.75 0 0 0 12 15.1v-.644c0-1.013.763-1.956 1.815-2.825A6 6 0 0 0 10 1ZM8.863 17.414a.75.75 0 0 0-.226 1.483 9.066 9.066 0 0 0 2.726 0 .75.75 0 0 0-.226-1.483 7.553 7.553 0 0 1-2.274 0Z" />
+                    </svg>
+                    Pista
+                </button>
                 <button
                     type="button"
                     @click="undo()"
@@ -148,6 +183,8 @@ new #[Title('Queens')] class extends Component {}; ?>
                     </svg>
                     Deshacer
                 </button>
+            </div>
+            <div class="flex gap-2">
                 <button
                     type="button"
                     @click="vaciar()"
@@ -155,14 +192,14 @@ new #[Title('Queens')] class extends Component {}; ?>
                 >
                     Vaciar
                 </button>
+                <button
+                    type="button"
+                    @click="newGame()"
+                    class="flex-1 rounded-sm bg-pizarra px-3 py-2.5 text-sm font-medium text-crema hover:bg-pizarra/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
+                >
+                    Tablero nuevo
+                </button>
             </div>
-            <button
-                type="button"
-                @click="newGame()"
-                class="w-full rounded-sm bg-pizarra px-4 py-2.5 text-sm font-medium text-crema hover:bg-pizarra/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
-            >
-                Tablero nuevo
-            </button>
         </div>
 
         {{-- Cómo se juega --}}
@@ -181,6 +218,7 @@ new #[Title('Queens')] class extends Component {}; ?>
                 <p>Al poner una reina se <strong>cruzan solas</strong> las casillas que quedan prohibidas por ella (su fila, su columna, su color y las que la tocan). Si sacás la reina, esas cruces se van, pero las que ya habías puesto a mano quedan.</p>
                 <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
                 <p><strong>Deshacer</strong> vuelve atrás la última acción, y podés seguir tocándolo para desandar todo paso a paso. <strong>Vaciar</strong> limpia el tablero.</p>
+                <p>Si te trabás, <strong>Pista</strong> te da una mano: si hay algo mal puesto te lo marca, y si no, te resalta una casilla donde va una reina para que la juegues vos.</p>
             </div>
         </details>
     </div>

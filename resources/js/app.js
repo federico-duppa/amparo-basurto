@@ -1,6 +1,6 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
-import { generateQueensRegions } from './queens';
+import { generateQueensRegions, solveQueens } from './queens';
 
 document.addEventListener('alpine:init', () => {
     const MESES = [
@@ -254,6 +254,12 @@ document.addEventListener('alpine:init', () => {
         // Pila de deshacer: un snapshot (marks + autoCross) por acción. Cada toque
         // es una acción; un deslizamiento entero cuenta como una sola.
         history: [],
+        // Pista. Se resuelve el tablero (solución única) la primera vez que se pide
+        // y se cachea mientras sea el mismo puzzle. hintCell resalta una casilla.
+        solution: null,
+        hintCell: null, // { r, c }
+        hintKind: null, // 'queen' (acá va) | 'error' (algo mal)
+        hintMessage: '',
 
         init() {
             this.muted = localStorage.getItem('queens-muted') === '1';
@@ -267,17 +273,21 @@ document.addEventListener('alpine:init', () => {
         // Arma un tablero nuevo (en el navegador) y arranca de cero.
         newGame() {
             this.regions = generateQueensRegions();
+            this.solution = null; // otro puzzle: se recalcula cuando pidan pista
             this.clearBoard();
             this.resetTimer();
             this.history = [];
+            this.clearHint();
         },
 
         // Vacía el tablero sin cambiar el puzzle. Es un punto de partida limpio:
-        // también borra el historial de deshacer.
+        // también borra el historial de deshacer. La solución se mantiene (mismo
+        // puzzle).
         vaciar() {
             this.clearBoard();
             this.resetTimer();
             this.history = [];
+            this.clearHint();
         },
 
         clearBoard() {
@@ -310,11 +320,66 @@ document.addEventListener('alpine:init', () => {
 
         undo() {
             if (!this.canUndo) return;
+            this.clearHint();
             const prev = this.history.pop();
             this.marks = prev.marks.map((row) => row.slice());
             this.autoCross = prev.autoCross.map((row) => row.slice());
             this.sfxUndo();
             this.check();
+        },
+
+        // --- Pista ------------------------------------------------------------
+        // Ayuda al que está atascado. Primero busca un error que trabe (una reina
+        // donde no va, o una cruz a mano donde en realidad va una reina) y lo
+        // señala; si no hay errores, muestra dónde va la próxima reina. No la pone
+        // por vos: resalta la casilla para que la juegues.
+
+        clearHint() {
+            this.hintCell = null;
+            this.hintKind = null;
+            this.hintMessage = '';
+        },
+
+        isHint(r, c) {
+            return this.hintCell !== null && this.hintCell.r === r && this.hintCell.c === c;
+        },
+
+        pista() {
+            if (this.won) return;
+            if (!this.solution) this.solution = solveQueens(this.regions);
+            const sol = this.solution;
+            if (!sol) return;
+
+            // 1) ¿Hay algo que trabe? Una reina fuera de lugar o una cruz a mano
+            // sobre una casilla donde sí va una reina.
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    if (this.marks[r][c] === 2 && sol[r] !== c) {
+                        return this.showHint(r, c, 'error', 'Ojo: una de tus reinas no va donde está.');
+                    }
+                    if (this.marks[r][c] === 1 && sol[r] === c) {
+                        return this.showHint(r, c, 'error', 'Tachaste una casilla donde en realidad va una reina.');
+                    }
+                }
+            }
+
+            // 2) Sin errores: dónde va la próxima reina que falta.
+            for (let r = 0; r < this.size; r++) {
+                if (this.marks[r][sol[r]] !== 2) {
+                    return this.showHint(r, sol[r], 'queen', 'Fijate: acá va una reina.');
+                }
+            }
+
+            // 3) Todo bien puesto (caso raro: si estuviera completo, ya habrías ganado).
+            this.clearHint();
+            this.hintMessage = 'Vas bien, no me queda nada para soplarte.';
+        },
+
+        showHint(r, c, kind, message) {
+            this.hintCell = { r, c };
+            this.hintKind = kind;
+            this.hintMessage = message;
+            this.sfxHint();
         },
 
         startTimer() {
@@ -338,6 +403,7 @@ document.addEventListener('alpine:init', () => {
         cycle(r, c) {
             if (this.won) return;
             if (!this.startedAt) this.startTimer();
+            this.clearHint();
             this.snapshot();
 
             const shown = this.displayState(r, c);
@@ -382,6 +448,7 @@ document.addEventListener('alpine:init', () => {
                 // Guardamos una sola foto para todo el trazo (una acción a deshacer).
                 this.drag.moved = true;
                 if (!this.startedAt) this.startTimer();
+                this.clearHint();
                 this.snapshot();
                 this.drag.mode = this.marks[this.drag.startR][this.drag.startC] === 1 ? 'erase' : 'mark';
                 this.paint(this.drag.startR, this.drag.startC);
@@ -639,6 +706,11 @@ document.addEventListener('alpine:init', () => {
         sfxUndo() {
             // Dos notas que bajan: "vuelvo atrás".
             this.blip([440, 330], { type: 'triangle', gain: 0.07, dur: 0.09, gap: 0.06 });
+        },
+
+        sfxHint() {
+            // Dos notas suaves que suben: "mirá por acá".
+            this.blip([587.33, 880], { type: 'sine', gain: 0.09, dur: 0.11, gap: 0.07 });
         },
 
         get timeLabel() {

@@ -181,3 +181,36 @@ export function generateQueensRegions(maxAttempts = 200) {
     }
     return regions;
 }
+
+// Resuelve un tablero: devuelve la solución (columna de la reina por fila) o null
+// si no tiene. Como los tableros de generateQueensRegions tienen solución única,
+// lo que devuelve es esa única solución. Lo usa el botón de pista.
+export function solveQueens(regions) {
+    const N = 8;
+    let found = null;
+    const current = [];
+    const usedCols = new Set();
+    const usedRegions = new Set();
+    const solve = (row, prev) => {
+        if (found) return;
+        if (row === N) {
+            found = current.slice();
+            return;
+        }
+        for (let col = 0; col < N; col++) {
+            if (usedCols.has(col)) continue;
+            if (prev !== null && Math.abs(col - prev) < 2) continue;
+            const reg = regions[row][col];
+            if (usedRegions.has(reg)) continue;
+            usedCols.add(col);
+            usedRegions.add(reg);
+            current[row] = col;
+            solve(row + 1, col);
+            usedCols.delete(col);
+            usedRegions.delete(reg);
+            if (found) return;
+        }
+    };
+    solve(0, null);
+    return found;
+}
