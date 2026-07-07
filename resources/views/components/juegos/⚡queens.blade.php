@@ -46,15 +46,36 @@ new #[Title('Queens')] class extends Component
         x-data="queens({ regions: @js($regions) })"
         class="space-y-4"
     >
-        {{-- Estado: reinas puestas y cronómetro. Live region para lectores de pantalla. --}}
-        <div class="flex items-center justify-between text-sm text-cuero/70" aria-live="polite">
-            <span><span x-text="queenCount()">0</span> de 8 reinas</span>
-            <span class="inline-flex items-center gap-1.5 tabular-nums">
-                {{-- Heroicon: clock (mini) --}}
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 text-cuero/50">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
-                </svg>
-                <span x-text="timeLabel">00:00</span>
+        {{-- Estado: reinas puestas, cronómetro y silenciador. --}}
+        <div class="flex items-center justify-between text-sm text-cuero/70">
+            <span aria-live="polite"><span x-text="queenCount()">0</span> de 8 reinas</span>
+            <span class="inline-flex items-center gap-3">
+                <span class="inline-flex items-center gap-1.5 tabular-nums">
+                    {{-- Heroicon: clock (mini) --}}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 text-cuero/50">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
+                    </svg>
+                    <span x-text="timeLabel">00:00</span>
+                </span>
+                <button
+                    type="button"
+                    @click="toggleMute()"
+                    :aria-pressed="muted"
+                    :aria-label="muted ? 'Activar sonido' : 'Silenciar'"
+                    class="grid size-8 place-items-center rounded-sm text-cuero/60 hover:text-cuero focus-visible:outline-2 focus-visible:outline-pizarra"
+                >
+                    {{-- Heroicon: speaker-wave (mini) --}}
+                    <svg x-show="!muted" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5">
+                        <path d="M10 3.75a.75.75 0 0 0-1.264-.546L4.703 7H3.167a.75.75 0 0 0-.7.48A6.985 6.985 0 0 0 2 10c0 .887.165 1.737.468 2.52.111.29.39.48.7.48h1.535l4.033 3.796A.75.75 0 0 0 10 16.25V3.75Z" />
+                        <path d="M15.95 5.05a.75.75 0 0 0-1.06 1.061 5.5 5.5 0 0 1 0 7.778.75.75 0 0 0 1.06 1.06 7 7 0 0 0 0-9.899Z" />
+                        <path d="M13.829 7.172a.75.75 0 0 0-1.061 1.06 2.5 2.5 0 0 1 0 3.536.75.75 0 0 0 1.06 1.06 4 4 0 0 0 0-5.656Z" />
+                    </svg>
+                    {{-- Heroicon: speaker (mini) + cruz --}}
+                    <svg x-show="muted" x-cloak xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5">
+                        <path d="M10 3.75a.75.75 0 0 0-1.264-.546L4.703 7H3.167a.75.75 0 0 0-.7.48A6.985 6.985 0 0 0 2 10c0 .887.165 1.737.468 2.52.111.29.39.48.7.48h1.535l4.033 3.796A.75.75 0 0 0 10 16.25V3.75Z" />
+                        <path d="M13.28 7.22a.75.75 0 0 0-1.06 1.06L13.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L15 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L17.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L15 8.94l-1.72-1.72Z" />
+                    </svg>
+                </button>
             </span>
         </div>
 
@@ -90,9 +111,9 @@ new #[Title('Queens')] class extends Component
                         aria-hidden="true"
                     ></span>
 
-                    {{-- Marca (X): "acá no va reina" --}}
+                    {{-- Marca (X): "acá no va reina". A mano o puesta por una reina. --}}
                     <svg
-                        x-show="marks[cell.r][cell.c] === 1"
+                        x-show="showCross(cell.r, cell.c)"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 20 20"
                         fill="currentColor"
@@ -104,7 +125,7 @@ new #[Title('Queens')] class extends Component
 
                     {{-- Reina (corona). Al ganar se vuelve dorada (ver .queens-crown en app.css) --}}
                     <svg
-                        x-show="marks[cell.r][cell.c] === 2"
+                        x-show="showQueen(cell.r, cell.c)"
                         :class="isBad(cell.r, cell.c) ? 'text-teja' : 'text-cuero'"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -161,6 +182,7 @@ new #[Title('Queens')] class extends Component
                 <p>Poné una reina en cada fila, cada columna y cada color: ocho en total.</p>
                 <p>Dos reinas no pueden tocarse, ni siquiera en diagonal.</p>
                 <p>Un toque marca la casilla con una cruz (para descartarla), otro pone la reina y otro la deja limpia. Si una reina rompe una regla, la vas a ver en rojo.</p>
+                <p>Al poner una reina se <strong>cruzan solas</strong> las casillas que quedan prohibidas por ella (su fila, su columna, su color y las que la tocan). Si sacás la reina, esas cruces se van, pero las que ya habías puesto a mano quedan.</p>
                 <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
             </div>
         </details>
