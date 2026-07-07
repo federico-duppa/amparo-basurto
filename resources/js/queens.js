@@ -409,6 +409,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (!u.regQ[g] && u.regCands[g].length === 1) {
             return {
                 kind: 'queen',
+                tier: 1,
                 cells: asCells(u.regCands[g]),
                 message: `A ${nameOf(g)} le queda una sola casilla posible: la reina va acá, seguro.`,
             };
@@ -418,6 +419,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (!u.rowQ[i] && u.rowCands[i].length === 1) {
             return {
                 kind: 'queen',
+                tier: 1,
                 cells: asCells(u.rowCands[i]),
                 message: `En la fila ${i + 1} queda una sola casilla posible: la reina va acá, seguro.`,
             };
@@ -425,6 +427,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (!u.colQ[i] && u.colCands[i].length === 1) {
             return {
                 kind: 'queen',
+                tier: 1,
                 cells: asCells(u.colCands[i]),
                 message: `En la columna ${i + 1} queda una sola casilla posible: la reina va acá, seguro.`,
             };
@@ -441,6 +444,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
             if (elims.length) {
                 return {
                     kind: 'eliminate',
+                    tier: 2,
                     cells: asCells(elims),
                     message: `${cap(nameOf(g))} solo entra en la fila ${r + 1}, así que la reina de esa fila va a salir de ahí: el resto de la fila se puede tachar.`,
                 };
@@ -453,6 +457,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
             if (elims.length) {
                 return {
                     kind: 'eliminate',
+                    tier: 2,
                     cells: asCells(elims),
                     message: `${cap(nameOf(g))} solo entra en la columna ${c + 1}, así que la reina de esa columna va a salir de ahí: el resto de la columna se puede tachar.`,
                 };
@@ -470,6 +475,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
                 if (elims.length) {
                     return {
                         kind: 'eliminate',
+                        tier: 3,
                         cells: asCells(elims),
                         message: `La fila ${i + 1} solo tiene lugar en ${nameOf(g)}, y ese grupo gasta su reina ahí: el resto de ${nameOf(g)} se puede tachar.`,
                     };
@@ -484,6 +490,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
                 if (elims.length) {
                     return {
                         kind: 'eliminate',
+                        tier: 3,
                         cells: asCells(elims),
                         message: `La columna ${i + 1} solo tiene lugar en ${nameOf(g)}, y ese grupo gasta su reina ahí: el resto de ${nameOf(g)} se puede tachar.`,
                     };
@@ -514,6 +521,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (wipers.length) {
             return {
                 kind: 'eliminate',
+                tier: 4,
                 cells: asCells(wipers),
                 message: wipers.length === 1
                     ? `Una reina acá dejaría a ${unitName(unit)} sin ningún lugar: esa casilla se puede tachar.`
@@ -569,6 +577,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
                 if (elims.length) {
                     return {
                         kind: 'eliminate',
+                        tier: 5,
                         cells: asCells(elims),
                         message: `Los ${groupWord} ${listRegs(combo)} solo entran en ${listLines(lineWordOf[type], lines)}: esas ${lineWordOf[type]}s son de ellos, tachá las casillas marcadas.`,
                     };
@@ -598,6 +607,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
                 if (elims.length) {
                     return {
                         kind: 'eliminate',
+                        tier: 5,
                         cells: asCells(elims),
                         message: `${cap(listLines(lineWordOf[type], combo))} solo tienen lugar en los ${groupWord} ${listRegs([...gs])}: esos grupos no van en ninguna otra ${lineWordOf[type]}, tachá las casillas marcadas.`,
                     };
@@ -614,6 +624,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (contra) {
             return {
                 kind: 'eliminate',
+                tier: 6,
                 cells: [{ r, c }],
                 message: `Si acá hubiera una reina, las jugadas forzadas dejan a ${unitName(contra)} sin lugar: se puede tachar.`,
             };
@@ -627,6 +638,7 @@ export function nextDeduction(regions, board, regionLabels = null) {
         if (deepContradicts(regions, sim)) {
             return {
                 kind: 'eliminate',
+                tier: 7,
                 cells: [{ r, c }],
                 message: 'Una reina acá termina en un callejón sin salida: se puede tachar.',
             };
@@ -634,4 +646,75 @@ export function nextDeduction(regions, board, regionLabels = null) {
     }
 
     return null;
+}
+
+// --- Dificultad ---------------------------------------------------------------
+//
+// La dificultad de un tablero se mide con el propio motor de deducciones: se lo
+// resuelve "como razonaría una persona" y se suma el costo de cada técnica que
+// hizo falta (el tier que devuelve nextDeduction). Un tablero que sale solo con
+// reinas forzadas y confinamientos es fácil; uno que obliga a palomares o
+// suposiciones es difícil. Determinístico: mismo tablero, mismo puntaje.
+
+const TIER_WEIGHTS = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 4, 6: 6, 7: 9 };
+
+export function rateQueensDifficulty(regions) {
+    const N = 8;
+    const cells = Array.from({ length: N }, () => Array(N).fill(0));
+    let score = 0;
+    let hardest = 0;
+    let queens = 0;
+
+    for (let step = 0; step < 400 && queens < N; step++) {
+        const d = nextDeduction(regions, cells);
+        if (!d) {
+            // Fuera del alcance del motor: más difícil que todo lo medible.
+            return { score: score + 30, hardest: 8 };
+        }
+        score += TIER_WEIGHTS[d.tier] ?? 0;
+        hardest = Math.max(hardest, d.tier);
+        if (d.kind === 'queen') {
+            const [{ r, c }] = d.cells;
+            cells[r][c] = 2;
+            for (let rr = 0; rr < N; rr++) {
+                for (let cc = 0; cc < N; cc++) {
+                    if (cells[rr][cc] !== 0) continue;
+                    if (rr === r || cc === c || regions[rr][cc] === regions[r][c] || (Math.abs(rr - r) <= 1 && Math.abs(cc - c) <= 1)) {
+                        cells[rr][cc] = 1;
+                    }
+                }
+            }
+            queens++;
+        } else {
+            for (const { r, c } of d.cells) cells[r][c] = 1;
+        }
+    }
+
+    return { score, hardest };
+}
+
+// Genera un tablero sesgado a difícil: arma candidatos, los puntúa con
+// rateQueensDifficulty y devuelve el más difícil, cortando antes si un candidato
+// ya alcanza el objetivo o si se agota el presupuesto de tiempo (para que
+// "Tablero nuevo" siga sintiéndose inmediato incluso en un teléfono).
+//
+// Los defaults salen de calibrar sobre 400 tableros crudos (score p50=6, p75=10,
+// p90=18): con minScore=14 el peor tablero servido ronda el p90 crudo y la
+// mediana lo supera, tardando ~25 ms acá (~140 ms el peor caso medido).
+export function generateHardQueensRegions({ minScore = 14, candidates = 24, budgetMs = 300 } = {}) {
+    const started = Date.now();
+    let best = null;
+    let bestScore = -1;
+
+    for (let i = 0; i < candidates; i++) {
+        const regions = generateQueensRegions();
+        const { score } = rateQueensDifficulty(regions);
+        if (score > bestScore) {
+            best = regions;
+            bestScore = score;
+        }
+        if (bestScore >= minScore || Date.now() - started > budgetMs) break;
+    }
+
+    return best;
 }
