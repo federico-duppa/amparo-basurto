@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateQueensRegions, solveQueens } from './queens';
+import { generateQueensRegions, nextDeduction, solveQueens } from './queens';
 
 const N = 8;
 
@@ -126,6 +126,60 @@ describe('solveQueens', () => {
             const regions = generateQueensRegions();
             const sol = solveQueens(regions);
             expect(solutionIsValid(regions, sol)).toBe(true);
+        }
+    });
+});
+
+// Réplica del comportamiento del tablero: poner una reina tacha todo lo que ella
+// prohíbe (fila, columna, color y adyacencia), como hace la UI con autoCross.
+function placeQueenWithCrosses(regions, cells, qr, qc) {
+    cells[qr][qc] = 2;
+    for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+            if (cells[r][c] !== 0) continue;
+            if (r === qr || c === qc || regions[r][c] === regions[qr][qc] || (Math.abs(r - qr) <= 1 && Math.abs(c - qc) <= 1)) {
+                cells[r][c] = 1;
+            }
+        }
+    }
+}
+
+describe('nextDeduction (motor de pistas)', () => {
+    it('resuelve tableros enteros solo con deducciones: reina solo con certeza y sin tachar nunca la solución', { timeout: 120_000 }, () => {
+        for (let i = 0; i < 20; i++) {
+            const regions = generateQueensRegions();
+            const sol = solveQueens(regions);
+            const cells = Array.from({ length: N }, () => Array(N).fill(0));
+            let queens = 0;
+            let steps = 0;
+
+            while (queens < 8 && steps++ < 400) {
+                const d = nextDeduction(regions, cells);
+
+                // El motor nunca se queda sin deducción en un tablero resoluble.
+                expect(d).not.toBeNull();
+                expect(typeof d.message).toBe('string');
+                expect(d.message.length).toBeGreaterThan(0);
+                expect(d.cells.length).toBeGreaterThan(0);
+
+                if (d.kind === 'queen') {
+                    // Certeza real: la reina sugerida es LA de la solución única.
+                    const { r, c } = d.cells[0];
+                    expect(sol[r]).toBe(c);
+                    placeQueenWithCrosses(regions, cells, r, c);
+                    queens++;
+                } else {
+                    for (const { r, c } of d.cells) {
+                        // Nunca tacha una casilla donde va una reina.
+                        expect(sol[r]).not.toBe(c);
+                        // Y siempre aporta información nueva.
+                        expect(cells[r][c]).toBe(0);
+                        cells[r][c] = 1;
+                    }
+                }
+            }
+
+            expect(queens).toBe(8);
         }
     });
 });
