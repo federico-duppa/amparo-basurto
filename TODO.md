@@ -31,7 +31,7 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 
 - **Más juegos en el catálogo.** El módulo está pensado para crecer; hoy solo tiene Queens.
 - **Guardar progreso y tiempos de Queens.** Hoy cada partida es de una sentada y no persiste nada. Sumar mejores tiempos / racha requiere un modelo por usuario (con el scoping de siempre).
-- **Puzzle del día en Queens.** Un tablero fijo por día, igual para todos, como el juego original. Necesita generación determinística por fecha (semilla), no el `shuffle`/`array_rand` actuales.
+- **Puzzle del día en Queens.** Un tablero fijo por día, igual para todos, como el juego original. Necesita generación determinística por fecha (semilla): el generador de `resources/js/queens.js` usa `Math.random`, habría que pasarle un RNG sembrado por la fecha (y, si además hay ranking, validar del lado del servidor).
 - **Dificultad o tamaños de grilla.** Por ahora es fijo 8×8; se podrían ofrecer grillas más chicas/grandes.
 
 ## Técnico (mantenimiento y performance)

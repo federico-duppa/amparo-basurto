@@ -1,5 +1,7 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
+import { generateQueensRegions } from './queens';
+
 document.addEventListener('alpine:init', () => {
     const MESES = [
         'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -220,13 +222,12 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // Tablero de Queens: toda la interacción (marcar, poner reina, detectar
-    // conflictos, cronómetro y victoria) vive en el cliente. El servidor solo
-    // arma el tablero y lo pasa por config.regions; acá nunca se conoce la
-    // solución, así que no hay forma de "espiarla" desde el navegador.
-    Alpine.data('queens', (config = {}) => ({
+    // Tablero de Queens: TODO vive en el cliente, incluido armar la partida.
+    // No hay ninguna llamada al backend para jugar ni para pedir un tablero
+    // nuevo; la generación está en generateQueensRegions() (resources/js/queens.js).
+    Alpine.data('queens', () => ({
         size: 8,
-        regions: config.regions || [],
+        regions: [],
         // marks = lo que el jugador puso a mano: 0 vacía · 1 cruz · 2 reina.
         marks: [],
         // autoCross[r][c] = cuántas reinas puestas cruzan esa casilla (fila,
@@ -250,25 +251,70 @@ document.addEventListener('alpine:init', () => {
         muted: false,
         audioCtx: null,
         lastCrossAt: 0,
+        // Pila de deshacer: un snapshot (marks + autoCross) por acción. Cada toque
+        // es una acción; un deslizamiento entero cuenta como una sola.
+        history: [],
 
         init() {
             this.muted = localStorage.getItem('queens-muted') === '1';
-            this.reset();
+            this.newGame();
         },
 
         destroy() {
             this.stopTimer();
         },
 
-        // Vacía el tablero sin cambiar el puzzle.
-        reset() {
+        // Arma un tablero nuevo (en el navegador) y arranca de cero.
+        newGame() {
+            this.regions = generateQueensRegions();
+            this.clearBoard();
+            this.resetTimer();
+            this.history = [];
+        },
+
+        // Vacía el tablero sin cambiar el puzzle. Es un punto de partida limpio:
+        // también borra el historial de deshacer.
+        vaciar() {
+            this.clearBoard();
+            this.resetTimer();
+            this.history = [];
+        },
+
+        clearBoard() {
             this.marks = Array.from({ length: this.size }, () => Array(this.size).fill(0));
             this.autoCross = Array.from({ length: this.size }, () => Array(this.size).fill(0));
             this.badCells = new Set();
             this.won = false;
+        },
+
+        resetTimer() {
             this.elapsed = 0;
             this.startedAt = null;
             this.stopTimer();
+        },
+
+        // --- Deshacer ---------------------------------------------------------
+        // Antes de cada acción guardamos una foto del tablero; deshacer la
+        // restaura, paso a paso hacia atrás.
+
+        snapshot() {
+            this.history.push({
+                marks: this.marks.map((row) => row.slice()),
+                autoCross: this.autoCross.map((row) => row.slice()),
+            });
+        },
+
+        get canUndo() {
+            return this.history.length > 0 && !this.won;
+        },
+
+        undo() {
+            if (!this.canUndo) return;
+            const prev = this.history.pop();
+            this.marks = prev.marks.map((row) => row.slice());
+            this.autoCross = prev.autoCross.map((row) => row.slice());
+            this.sfxUndo();
+            this.check();
         },
 
         startTimer() {
@@ -292,6 +338,7 @@ document.addEventListener('alpine:init', () => {
         cycle(r, c) {
             if (this.won) return;
             if (!this.startedAt) this.startTimer();
+            this.snapshot();
 
             const shown = this.displayState(r, c);
             if (shown === 0) {
@@ -332,8 +379,10 @@ document.addEventListener('alpine:init', () => {
             if (!this.drag.moved) {
                 // Primer salto a otra casilla: esto es un deslizamiento. El modo
                 // lo fija la casilla donde arrancó (sobre cruz borra, si no pinta).
+                // Guardamos una sola foto para todo el trazo (una acción a deshacer).
                 this.drag.moved = true;
                 if (!this.startedAt) this.startTimer();
+                this.snapshot();
                 this.drag.mode = this.marks[this.drag.startR][this.drag.startC] === 1 ? 'erase' : 'mark';
                 this.paint(this.drag.startR, this.drag.startC);
             }
@@ -585,6 +634,11 @@ document.addEventListener('alpine:init', () => {
 
         sfxVictory() {
             this.blip([523.25, 659.25, 783.99, 1046.5], { type: 'sine', gain: 0.16, dur: 0.26, gap: 0.13 });
+        },
+
+        sfxUndo() {
+            // Dos notas que bajan: "vuelvo atrás".
+            this.blip([440, 330], { type: 'triangle', gain: 0.07, dur: 0.09, gap: 0.06 });
         },
 
         get timeLabel() {
