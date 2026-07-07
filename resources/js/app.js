@@ -1,6 +1,10 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
-import { generateQueensRegions, solveQueens } from './queens';
+import { generateQueensRegions, nextDeduction, solveQueens } from './queens';
+
+// Nombres de los tintes de región del tablero de Queens (--color-q1..q8, mismo
+// orden que los tokens del tema) para que la pista pueda decir "el color arena".
+const QUEENS_REGION_LABELS = ['arena', 'greda', 'salvia', 'eucalipto', 'malva', 'mostaza', 'terracota', 'piedra'];
 
 document.addEventListener('alpine:init', () => {
     const MESES = [
@@ -254,11 +258,12 @@ document.addEventListener('alpine:init', () => {
         // Pila de deshacer: un snapshot (marks + autoCross) por acción. Cada toque
         // es una acción; un deslizamiento entero cuenta como una sola.
         history: [],
-        // Pista. Se resuelve el tablero (solución única) la primera vez que se pide
-        // y se cachea mientras sea el mismo puzzle. hintCell resalta una casilla.
+        // Pista. La solución se calcula una vez por puzzle y se usa SOLO para
+        // detectar errores; las sugerencias salen del motor de deducciones
+        // (nextDeduction). hintCells resalta las casillas de la deducción.
         solution: null,
-        hintCell: null, // { r, c }
-        hintKind: null, // 'queen' (acá va) | 'error' (algo mal)
+        hintCells: [],
+        hintKind: null, // 'queen' (certeza) | 'eliminate' (descartes) | 'error' (algo mal)
         hintMessage: '',
 
         init() {
@@ -329,19 +334,21 @@ document.addEventListener('alpine:init', () => {
         },
 
         // --- Pista ------------------------------------------------------------
-        // Ayuda al que está atascado. Primero busca un error que trabe (una reina
-        // donde no va, o una cruz a mano donde en realidad va una reina) y lo
-        // señala; si no hay errores, muestra dónde va la próxima reina. No la pone
-        // por vos: resalta la casilla para que la juegues.
+        // Ayuda al que está atascado DEDUCIENDO sobre lo que está a la vista, sin
+        // espiar la solución. Primero busca un error que trabe y lo señala (para
+        // eso sí compara contra la solución: es detección de errores, no ayuda).
+        // Si no hay errores, pide la próxima deducción al motor (nextDeduction):
+        // cuando hay una reina 100 % segura la señala (sin ponerla), y si todavía
+        // no hay certeza tacha por vos las casillas descartables y explica por qué.
 
         clearHint() {
-            this.hintCell = null;
+            this.hintCells = [];
             this.hintKind = null;
             this.hintMessage = '';
         },
 
         isHint(r, c) {
-            return this.hintCell !== null && this.hintCell.r === r && this.hintCell.c === c;
+            return this.hintCells.some((cell) => cell.r === r && cell.c === c);
         },
 
         pista() {
@@ -355,28 +362,45 @@ document.addEventListener('alpine:init', () => {
             for (let r = 0; r < this.size; r++) {
                 for (let c = 0; c < this.size; c++) {
                     if (this.marks[r][c] === 2 && sol[r] !== c) {
-                        return this.showHint(r, c, 'error', 'Ojo: una de tus reinas no va donde está.');
+                        return this.showHint([{ r, c }], 'error', 'Ojo: una de tus reinas no va donde está.');
                     }
                     if (this.marks[r][c] === 1 && sol[r] === c) {
-                        return this.showHint(r, c, 'error', 'Tachaste una casilla donde en realidad va una reina.');
+                        return this.showHint([{ r, c }], 'error', 'Tachaste una casilla donde en realidad va una reina.');
                     }
                 }
             }
 
-            // 2) Sin errores: dónde va la próxima reina que falta.
-            for (let r = 0; r < this.size; r++) {
-                if (this.marks[r][sol[r]] !== 2) {
-                    return this.showHint(r, sol[r], 'queen', 'Fijate: acá va una reina.');
-                }
+            // 2) Sin errores: la próxima deducción lógica sobre lo visible.
+            const seen = this.marks.map((row, r) => row.map((m, c) => (m === 2 ? 2 : this.displayState(r, c) === 1 ? 1 : 0)));
+            const d = nextDeduction(this.regions, seen, QUEENS_REGION_LABELS);
+
+            if (!d) {
+                // Con la suposición como último recurso no debería pasar; si pasa,
+                // lo decimos sin inventar certezas.
+                this.clearHint();
+                this.hintMessage = 'Acá no encuentro una deducción simple. Probá suponer una jugada y deshacé si no cierra.';
+
+                return;
             }
 
-            // 3) Todo bien puesto (caso raro: si estuviera completo, ya habrías ganado).
-            this.clearHint();
-            this.hintMessage = 'Vas bien, no me queda nada para soplarte.';
+            if (d.kind === 'queen') {
+                // Certeza lógica total: se señala, la ponés vos.
+                return this.showHint(d.cells, 'queen', d.message);
+            }
+
+            // Descartes deducidos: la pista los tacha por vos (las cruces son
+            // anotaciones; la reina siempre la ponés vos). Es una sola acción:
+            // Deshacer las levanta juntas.
+            if (!this.startedAt) this.startTimer();
+            this.snapshot();
+            for (const { r, c } of d.cells) {
+                if (this.marks[r][c] === 0) this.marks[r][c] = 1;
+            }
+            this.showHint(d.cells, 'eliminate', d.message);
         },
 
-        showHint(r, c, kind, message) {
-            this.hintCell = { r, c };
+        showHint(cells, kind, message) {
+            this.hintCells = cells;
             this.hintKind = kind;
             this.hintMessage = message;
             this.sfxHint();

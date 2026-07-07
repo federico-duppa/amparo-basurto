@@ -218,7 +218,7 @@ new #[Title('Queens')] class extends Component {}; ?>
                 <p>Al poner una reina se <strong>cruzan solas</strong> las casillas que quedan prohibidas por ella (su fila, su columna, su color y las que la tocan). Si sacás la reina, esas cruces se van, pero las que ya habías puesto a mano quedan.</p>
                 <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
                 <p><strong>Deshacer</strong> vuelve atrás la última acción, y podés seguir tocándolo para desandar todo paso a paso. <strong>Vaciar</strong> limpia el tablero.</p>
-                <p>Si te trabás, <strong>Pista</strong> te da una mano: si hay algo mal puesto te lo marca, y si no, te resalta una casilla donde va una reina para que la juegues vos.</p>
+                <p>Si te trabás, <strong>Pista</strong> te da una mano con lógica: si hay algo mal puesto te lo marca; si hay casillas que se pueden descartar por deducción, te las tacha y te cuenta el porqué; y solo te señala dónde va una reina cuando es una certeza total (esa la ponés vos).</p>
             </div>
         </details>
     </div>
