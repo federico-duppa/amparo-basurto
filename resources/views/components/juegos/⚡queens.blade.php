@@ -1,29 +1,12 @@
 <?php
 
-use App\Support\QueensPuzzle;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Queens')] class extends Component
-{
-    /** Regiones del tablero (8x8, índice 0..7). Lo único que ve el cliente. */
-    public array $regions = [];
-
-    /** Cambia con cada tablero nuevo: re-siembra el componente Alpine. */
-    public int $gameId = 0;
-
-    public function mount(): void
-    {
-        $this->nuevo();
-    }
-
-    /** Arma un tablero nuevo con solución única. */
-    public function nuevo(): void
-    {
-        $this->regions = QueensPuzzle::generate()['regions'];
-        $this->gameId++;
-    }
-}; ?>
+// La partida se arma y se juega entera en el navegador (ver generateQueensRegions
+// en resources/js/app.js): este componente solo pinta el marco de la página. No
+// hay estado en el servidor ni llamadas al backend para jugar.
+new #[Title('Queens')] class extends Component {}; ?>
 
 <div class="space-y-5">
     <div class="flex items-center gap-2">
@@ -42,8 +25,7 @@ new #[Title('Queens')] class extends Component
     </div>
 
     <div
-        wire:key="board-{{ $gameId }}"
-        x-data="queens({ regions: @js($regions) })"
+        x-data="queens()"
         class="space-y-4"
     >
         {{-- Estado: reinas puestas, cronómetro y silenciador. --}}
@@ -152,18 +134,32 @@ new #[Title('Queens')] class extends Component
         </div>
 
         {{-- Controles --}}
-        <div class="flex gap-2">
+        <div class="space-y-2">
+            <div class="flex gap-2">
+                <button
+                    type="button"
+                    @click="undo()"
+                    :disabled="!canUndo"
+                    class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-cuero/25 px-3 py-2.5 text-sm font-medium text-cuero hover:bg-cuero/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cuero disabled:pointer-events-none disabled:opacity-40"
+                >
+                    {{-- Heroicon: arrow-uturn-left (mini) --}}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
+                        <path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clip-rule="evenodd" />
+                    </svg>
+                    Deshacer
+                </button>
+                <button
+                    type="button"
+                    @click="vaciar()"
+                    class="flex-1 rounded-sm border border-cuero/25 px-3 py-2.5 text-sm font-medium text-cuero hover:bg-cuero/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cuero"
+                >
+                    Vaciar
+                </button>
+            </div>
             <button
                 type="button"
-                @click="reset()"
-                class="flex-1 rounded-sm border border-cuero/25 px-4 py-2.5 text-sm font-medium text-cuero hover:bg-cuero/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cuero"
-            >
-                Vaciar
-            </button>
-            <button
-                type="button"
-                wire:click="nuevo"
-                class="flex-1 rounded-sm bg-pizarra px-4 py-2.5 text-sm font-medium text-crema hover:bg-pizarra/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
+                @click="newGame()"
+                class="w-full rounded-sm bg-pizarra px-4 py-2.5 text-sm font-medium text-crema hover:bg-pizarra/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
             >
                 Tablero nuevo
             </button>
@@ -184,6 +180,7 @@ new #[Title('Queens')] class extends Component
                 <p>Un toque marca la casilla con una cruz (para descartarla), otro pone la reina y otro la deja limpia. Si una reina rompe una regla, la vas a ver en rojo.</p>
                 <p>Al poner una reina se <strong>cruzan solas</strong> las casillas que quedan prohibidas por ella (su fila, su columna, su color y las que la tocan). Si sacás la reina, esas cruces se van, pero las que ya habías puesto a mano quedan.</p>
                 <p>También podés <strong>deslizar el dedo</strong> por el tablero para ir marcando cruces de corrido; si arrancás el deslizamiento sobre una cruz, en cambio las vas borrando.</p>
+                <p><strong>Deshacer</strong> vuelve atrás la última acción, y podés seguir tocándolo para desandar todo paso a paso. <strong>Vaciar</strong> limpia el tablero.</p>
             </div>
         </details>
     </div>

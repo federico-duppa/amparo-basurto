@@ -1,5 +1,186 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
+// Generador de tableros de Queens (8x8), en el navegador. Antes lo armaba el
+// backend y lo mandaba en el HTML; ahora la partida se calcula acá y no hace
+// falta ninguna llamada al servidor para jugar ni para pedir un tablero nuevo.
+//
+// Devuelve las regiones (int[8][8], índice 0..7) de un tablero con SOLUCIÓN
+// ÚNICA y REGIONES CONTIGUAS. En tres pasos: (1) una colocación válida de
+// reinas; (2) regiones que crecen como manchas alrededor de cada reina hasta
+// cubrir todo; (3) un "tallado" que, mientras exista otra solución además de la
+// de origen, pasa una celda de borde a una región vecina para invalidarla,
+// cuidando no partir ninguna región. Si un tablero se traba antes de quedar
+// único, se descarta y se prueba otro (la tasa de éxito real es ~1 de cada 4).
+function generateQueensRegions(maxAttempts = 200) {
+    const N = 8;
+    const CARVE_STEPS = 300;
+
+    const shuffle = (arr) => {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    const orthogonal = (r, c) => {
+        const out = [];
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < N && nc >= 0 && nc < N) out.push([nr, nc]);
+        }
+        return out;
+    };
+
+    // Una por fila y columna, con filas contiguas en columnas no contiguas (así
+    // ninguna reina toca a otra). Backtracking con orden al azar.
+    const randomSolution = () => {
+        const cols = [];
+        const used = new Set();
+        const place = (row, prev) => {
+            if (row === N) return true;
+            for (const col of shuffle([...Array(N).keys()])) {
+                if (used.has(col)) continue;
+                if (prev !== null && Math.abs(col - prev) < 2) continue;
+                cols[row] = col;
+                used.add(col);
+                if (place(row + 1, col)) return true;
+                used.delete(col);
+            }
+            return false;
+        };
+        place(0, null);
+        return cols.slice();
+    };
+
+    const growRegions = (solution) => {
+        const region = Array.from({ length: N }, () => Array(N).fill(-1));
+        let frontier = [];
+        solution.forEach((col, row) => {
+            region[row][col] = row; // índice de región = fila de su reina (0..7)
+            frontier.push([row, col]);
+        });
+        let remaining = N * N - N;
+        while (remaining > 0 && frontier.length) {
+            const idx = Math.floor(Math.random() * frontier.length);
+            const [r, c] = frontier[idx];
+            const free = orthogonal(r, c).filter(([nr, nc]) => region[nr][nc] === -1);
+            if (!free.length) {
+                frontier.splice(idx, 1);
+                continue;
+            }
+            const [nr, nc] = free[Math.floor(Math.random() * free.length)];
+            region[nr][nc] = region[r][c];
+            frontier.push([nr, nc]);
+            remaining--;
+        }
+        return region;
+    };
+
+    // Primera solución distinta de la de origen, o null si no hay otra.
+    const firstOtherSolution = (regions, solution) => {
+        let found = null;
+        const current = [];
+        const usedCols = new Set();
+        const usedRegions = new Set();
+        const solve = (row, prev) => {
+            if (found) return;
+            if (row === N) {
+                if (current.some((v, i) => v !== solution[i]) || current.length !== solution.length) {
+                    found = current.slice();
+                }
+                return;
+            }
+            for (let col = 0; col < N; col++) {
+                if (usedCols.has(col)) continue;
+                if (prev !== null && Math.abs(col - prev) < 2) continue;
+                const reg = regions[row][col];
+                if (usedRegions.has(reg)) continue;
+                usedCols.add(col);
+                usedRegions.add(reg);
+                current[row] = col;
+                solve(row + 1, col);
+                usedCols.delete(col);
+                usedRegions.delete(reg);
+                if (found) return;
+            }
+        };
+        solve(0, null);
+        return found;
+    };
+
+    // ¿La región g sigue conexa si le sacamos la celda (exR,exC)?
+    const regionStaysConnectedWithout = (regions, g, exR, exC) => {
+        const cells = new Set();
+        for (let r = 0; r < N; r++) {
+            for (let c = 0; c < N; c++) {
+                if (regions[r][c] === g && !(r === exR && c === exC)) cells.add(r * N + c);
+            }
+        }
+        if (!cells.size) return false;
+        const start = cells.values().next().value;
+        const seen = new Set([start]);
+        const stack = [start];
+        while (stack.length) {
+            const key = stack.pop();
+            const r = Math.floor(key / N);
+            const c = key % N;
+            for (const [nr, nc] of orthogonal(r, c)) {
+                const nk = nr * N + nc;
+                if (cells.has(nk) && !seen.has(nk)) {
+                    seen.add(nk);
+                    stack.push(nk);
+                }
+            }
+        }
+        return seen.size === cells.size;
+    };
+
+    // Muda una celda reina de la otra solución a una región vecina (sin partir la
+    // de origen) para invalidar esa solución. Devuelve true si pudo.
+    const carveStep = (regions, solution, other) => {
+        const rows = [];
+        for (let r = 0; r < N; r++) if (other[r] !== solution[r]) rows.push(r);
+        shuffle(rows);
+
+        for (const r of rows) {
+            const c = other[r];
+            if (solution[r] === c) continue;
+            const g = regions[r][c];
+            const neighborRegions = new Set();
+            for (const [nr, nc] of orthogonal(r, c)) {
+                const h = regions[nr][nc];
+                if (h !== g) neighborRegions.add(h);
+            }
+            if (!neighborRegions.size) continue;
+            if (!regionStaysConnectedWithout(regions, g, r, c)) continue;
+            const targets = [...neighborRegions];
+            regions[r][c] = targets[Math.floor(Math.random() * targets.length)];
+            return true;
+        }
+        return false;
+    };
+
+    const carveToUnique = (regions, solution) => {
+        for (let step = 0; step < CARVE_STEPS; step++) {
+            const other = firstOtherSolution(regions, solution);
+            if (!other) return true; // sin otra solución: es única
+            if (!carveStep(regions, solution, other)) return false; // se trabó
+        }
+        return false;
+    };
+
+    let solution = randomSolution();
+    let regions = growRegions(solution);
+    for (let i = 0; i < maxAttempts; i++) {
+        solution = randomSolution();
+        regions = growRegions(solution);
+        if (carveToUnique(regions, solution)) return regions;
+    }
+    return regions;
+}
+
 document.addEventListener('alpine:init', () => {
     const MESES = [
         'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -220,13 +401,12 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // Tablero de Queens: toda la interacción (marcar, poner reina, detectar
-    // conflictos, cronómetro y victoria) vive en el cliente. El servidor solo
-    // arma el tablero y lo pasa por config.regions; acá nunca se conoce la
-    // solución, así que no hay forma de "espiarla" desde el navegador.
-    Alpine.data('queens', (config = {}) => ({
+    // Tablero de Queens: TODO vive en el cliente, incluido armar la partida.
+    // No hay ninguna llamada al backend para jugar ni para pedir un tablero
+    // nuevo; la generación está en generateQueensRegions(), acá arriba.
+    Alpine.data('queens', () => ({
         size: 8,
-        regions: config.regions || [],
+        regions: [],
         // marks = lo que el jugador puso a mano: 0 vacía · 1 cruz · 2 reina.
         marks: [],
         // autoCross[r][c] = cuántas reinas puestas cruzan esa casilla (fila,
@@ -250,25 +430,70 @@ document.addEventListener('alpine:init', () => {
         muted: false,
         audioCtx: null,
         lastCrossAt: 0,
+        // Pila de deshacer: un snapshot (marks + autoCross) por acción. Cada toque
+        // es una acción; un deslizamiento entero cuenta como una sola.
+        history: [],
 
         init() {
             this.muted = localStorage.getItem('queens-muted') === '1';
-            this.reset();
+            this.newGame();
         },
 
         destroy() {
             this.stopTimer();
         },
 
-        // Vacía el tablero sin cambiar el puzzle.
-        reset() {
+        // Arma un tablero nuevo (en el navegador) y arranca de cero.
+        newGame() {
+            this.regions = generateQueensRegions();
+            this.clearBoard();
+            this.resetTimer();
+            this.history = [];
+        },
+
+        // Vacía el tablero sin cambiar el puzzle. Es un punto de partida limpio:
+        // también borra el historial de deshacer.
+        vaciar() {
+            this.clearBoard();
+            this.resetTimer();
+            this.history = [];
+        },
+
+        clearBoard() {
             this.marks = Array.from({ length: this.size }, () => Array(this.size).fill(0));
             this.autoCross = Array.from({ length: this.size }, () => Array(this.size).fill(0));
             this.badCells = new Set();
             this.won = false;
+        },
+
+        resetTimer() {
             this.elapsed = 0;
             this.startedAt = null;
             this.stopTimer();
+        },
+
+        // --- Deshacer ---------------------------------------------------------
+        // Antes de cada acción guardamos una foto del tablero; deshacer la
+        // restaura, paso a paso hacia atrás.
+
+        snapshot() {
+            this.history.push({
+                marks: this.marks.map((row) => row.slice()),
+                autoCross: this.autoCross.map((row) => row.slice()),
+            });
+        },
+
+        get canUndo() {
+            return this.history.length > 0 && !this.won;
+        },
+
+        undo() {
+            if (!this.canUndo) return;
+            const prev = this.history.pop();
+            this.marks = prev.marks.map((row) => row.slice());
+            this.autoCross = prev.autoCross.map((row) => row.slice());
+            this.sfxUndo();
+            this.check();
         },
 
         startTimer() {
@@ -292,6 +517,7 @@ document.addEventListener('alpine:init', () => {
         cycle(r, c) {
             if (this.won) return;
             if (!this.startedAt) this.startTimer();
+            this.snapshot();
 
             const shown = this.displayState(r, c);
             if (shown === 0) {
@@ -332,8 +558,10 @@ document.addEventListener('alpine:init', () => {
             if (!this.drag.moved) {
                 // Primer salto a otra casilla: esto es un deslizamiento. El modo
                 // lo fija la casilla donde arrancó (sobre cruz borra, si no pinta).
+                // Guardamos una sola foto para todo el trazo (una acción a deshacer).
                 this.drag.moved = true;
                 if (!this.startedAt) this.startTimer();
+                this.snapshot();
                 this.drag.mode = this.marks[this.drag.startR][this.drag.startC] === 1 ? 'erase' : 'mark';
                 this.paint(this.drag.startR, this.drag.startC);
             }
@@ -585,6 +813,11 @@ document.addEventListener('alpine:init', () => {
 
         sfxVictory() {
             this.blip([523.25, 659.25, 783.99, 1046.5], { type: 'sine', gain: 0.16, dur: 0.26, gap: 0.13 });
+        },
+
+        sfxUndo() {
+            // Dos notas que bajan: "vuelvo atrás".
+            this.blip([440, 330], { type: 'triangle', gain: 0.07, dur: 0.09, gap: 0.06 });
         },
 
         get timeLabel() {
