@@ -27,6 +27,11 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 - **Revisión guiada por Amparo.** Repaso semanal conversado de lo que quedó viejo ("Esta quedó de hace tres semanas, ¿la seguís queriendo hacer?").
 - **Tareas desde otros módulos.** Que un vencimiento de Auto ("la VTV vence en 15 días") pueda generar una tarea con fecha. Requiere tocar el módulo Auto; queda pendiente hasta encarar esa integración.
 
+## Compartir (`/compartir`)
+
+- **Recibir imágenes y archivos compartidos.** Hoy el share target solo acepta texto (método GET). Recibir una foto o un PDF requiere `share_target` con POST `multipart/form-data` (`enctype` y `files` en el manifest, más un endpoint que reciba el upload) y un lugar donde guardar el archivo — se traba con la misma falta de object storage que los adjuntos de Salud y Auto.
+- **Más destinos al compartir.** Hoy Amparo ofrece tarea o lista de compras; podrían sumarse otros destinos (un gasto de Plata, una entrada del timeline de Salud) cuando haya un caso de uso real.
+
 ## Juegos (`/juegos`)
 
 - **Más juegos en el catálogo.** El módulo está pensado para crecer; hoy solo tiene Queens.

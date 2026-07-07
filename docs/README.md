@@ -12,6 +12,7 @@ Acá vive la descripción funcional de cada módulo de Amparo Basurto: qué hace
 | Compras | `/compras` | [compras.md](compras.md) |
 | Plata | `/plata` | [plata.md](plata.md) |
 | Juegos | `/juegos` | [juegos.md](juegos.md) |
+| Compartir (share de Android) | `/compartir` | [compartir.md](compartir.md) |
 
 ## Base común a toda la app
 

@@ -6,6 +6,8 @@
         <title>{{ isset($title) ? $title.' — '.config('app.name') : config('app.name') }}</title>
 
         <link rel="icon" type="image/svg+xml" href="{{ asset('icon.svg') }}">
+        <link rel="manifest" href="{{ asset('manifest.json') }}">
+        <meta name="theme-color" content="#3F4A34">
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
         <link href="https://fonts.bunny.net/css?family=bitter:600,700|inter:400,500,600&display=swap" rel="stylesheet">
