@@ -29,6 +29,7 @@ npm run dev                       # Vite en modo watch
 npm run build                     # build de assets (los tests no lo necesitan: TestCase usa withoutVite)
 php artisan test                  # suite completa (PHPUnit)
 php artisan test --filter=Nombre  # un solo test
+npm run test:js                   # tests de JS (Vitest): lógica de cliente pura, p. ej. el generador de Queens
 vendor/bin/pint                   # formateo de código PHP (correr antes de commitear)
 php artisan migrate               # migraciones (SQLite en database/database.sqlite)
 ```

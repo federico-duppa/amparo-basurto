@@ -65,3 +65,24 @@ jobs:
 
       - name: Check code style
         run: vendor/bin/pint --test
+
+  js:
+    runs-on: ubuntu-latest
+
+    name: JS tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run JS tests
+        run: npm run test:js
