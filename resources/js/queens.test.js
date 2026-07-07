@@ -1,7 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { generateQueensRegions } from './queens';
+import { generateQueensRegions, solveQueens } from './queens';
 
 const N = 8;
+
+// ¿La solución cumple las reglas del juego para ese tablero?
+function solutionIsValid(regions, sol) {
+    if (!Array.isArray(sol) || sol.length !== N) return false;
+    const cols = new Set();
+    const regs = new Set();
+    for (let r = 0; r < N; r++) {
+        const c = sol[r];
+        if (c < 0 || c >= N || cols.has(c)) return false;
+        cols.add(c);
+        const g = regions[r][c];
+        if (regs.has(g)) return false;
+        regs.add(g);
+        if (r > 0 && Math.abs(c - sol[r - 1]) < 2) return false;
+    }
+    return true;
+}
 
 // Cada región es una sola mancha conexa (adyacencia ortogonal).
 function contiguous(regions) {
@@ -99,6 +116,16 @@ describe('generateQueensRegions', () => {
     it('cada tablero tiene exactamente una solución', () => {
         for (let i = 0; i < 40; i++) {
             expect(countSolutions(generateQueensRegions())).toBe(1);
+        }
+    });
+});
+
+describe('solveQueens', () => {
+    it('resuelve cada tablero con una solución válida', () => {
+        for (let i = 0; i < 40; i++) {
+            const regions = generateQueensRegions();
+            const sol = solveQueens(regions);
+            expect(solutionIsValid(regions, sol)).toBe(true);
         }
     });
 });
