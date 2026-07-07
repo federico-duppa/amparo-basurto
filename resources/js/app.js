@@ -227,7 +227,14 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('queens', (config = {}) => ({
         size: 8,
         regions: config.regions || [],
-        marks: [], // 0 vacía · 1 marca (X) · 2 reina
+        // marks = lo que el jugador puso a mano: 0 vacía · 1 cruz · 2 reina.
+        marks: [],
+        // autoCross[r][c] = cuántas reinas puestas cruzan esa casilla (fila,
+        // columna, color o adyacencia). Una casilla se ve cruzada si el jugador
+        // la cruzó (marks===1) o si alguna reina la cruza (autoCross>0). Guardar
+        // el conteo por casilla permite deshacer al sacar una reina solo lo que
+        // esa reina agregó, sin borrar cruces previas ni las de otra reina.
+        autoCross: [],
         badCells: new Set(),
         won: false,
         elapsed: 0,
@@ -238,8 +245,14 @@ document.addEventListener('alpine:init', () => {
         // Un deslizamiento termina con un click sintético sobre la celda inicial;
         // esta bandera hace que ese click no cicle la casilla.
         suppressClick: false,
+        // Sonido. Se sintetiza con Web Audio (sin archivos). Se puede silenciar y
+        // la preferencia queda guardada.
+        muted: false,
+        audioCtx: null,
+        lastCrossAt: 0,
 
         init() {
+            this.muted = localStorage.getItem('queens-muted') === '1';
             this.reset();
         },
 
@@ -250,6 +263,7 @@ document.addEventListener('alpine:init', () => {
         // Vacía el tablero sin cambiar el puzzle.
         reset() {
             this.marks = Array.from({ length: this.size }, () => Array(this.size).fill(0));
+            this.autoCross = Array.from({ length: this.size }, () => Array(this.size).fill(0));
             this.badCells = new Set();
             this.won = false;
             this.elapsed = 0;
@@ -272,11 +286,26 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // Un toque cicla vacía → marca → reina → vacía (como el juego original).
+        // Un toque cicla según lo que se ve: vacía → cruz → reina → vacía. Al
+        // poner la reina se cruzan solas las casillas que quedan prohibidas por
+        // ella; al sacarla se deshacen exactamente esas.
         cycle(r, c) {
             if (this.won) return;
             if (!this.startedAt) this.startTimer();
-            this.marks[r][c] = (this.marks[r][c] + 1) % 3;
+
+            const shown = this.displayState(r, c);
+            if (shown === 0) {
+                this.marks[r][c] = 1; // vacía → cruz a mano
+                this.sfxCross();
+            } else if (shown === 1) {
+                this.marks[r][c] = 2; // cruz → reina
+                this.applyQueenCrosses(r, c);
+                this.sfxQueen();
+            } else {
+                this.marks[r][c] = 0; // reina → vacía
+                this.removeQueenCrosses(r, c);
+            }
+
             this.check();
         },
 
@@ -334,12 +363,14 @@ document.addEventListener('alpine:init', () => {
             this.cycle(r, c);
         },
 
-        // Pinta o borra una cruz sin tocar reinas ni casillas vacías en modo borrar.
+        // Pinta o borra una cruz a mano. No pisa reinas ni cruces automáticas: el
+        // modo 'mark' solo cruza casillas que se ven vacías; 'erase' solo levanta
+        // cruces puestas a mano (las que dejó una reina se van al sacar la reina).
         paint(r, c) {
-            const state = this.marks[r][c];
-            if (this.drag.mode === 'mark' && state === 0) {
+            if (this.drag.mode === 'mark' && this.displayState(r, c) === 0) {
                 this.marks[r][c] = 1;
-            } else if (this.drag.mode === 'erase' && state === 1) {
+                this.sfxCross();
+            } else if (this.drag.mode === 'erase' && this.marks[r][c] === 1) {
                 this.marks[r][c] = 0;
             }
         },
@@ -393,7 +424,9 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.badCells = bad;
-            this.won = bad.size === 0 && queens.length === this.size;
+            const nowWon = bad.size === 0 && queens.length === this.size;
+            if (nowWon && !this.won) this.sfxVictory();
+            this.won = nowWon;
             if (this.won) this.stopTimer();
         },
 
@@ -424,8 +457,134 @@ document.addEventListener('alpine:init', () => {
         },
 
         cellLabel(r, c) {
-            const estado = this.marks[r][c] === 2 ? 'reina' : this.marks[r][c] === 1 ? 'marcada' : 'vacía';
+            const shown = this.displayState(r, c);
+            const estado = shown === 2 ? 'reina' : shown === 1 ? 'marcada' : 'vacía';
             return 'Fila ' + (r + 1) + ', columna ' + (c + 1) + ', ' + estado;
+        },
+
+        // Lo que se ve en la casilla: reina (2) manda; si no, cruz (1) ya sea a
+        // mano o por una reina; si no, vacía (0).
+        displayState(r, c) {
+            if (this.marks[r][c] === 2) return 2;
+            if (this.marks[r][c] === 1 || this.autoCross[r][c] > 0) return 1;
+
+            return 0;
+        },
+
+        showQueen(r, c) {
+            return this.marks[r][c] === 2;
+        },
+
+        showCross(r, c) {
+            return this.marks[r][c] !== 2 && (this.marks[r][c] === 1 || this.autoCross[r][c] > 0);
+        },
+
+        // Casillas que una reina en (qr,qc) deja prohibidas: toda su fila, su
+        // columna, su color y las que la tocan (incluida la diagonal). Sin la
+        // propia. Set de claves para no contar dos veces la misma casilla.
+        affectedCells(qr, qc) {
+            const keys = new Set();
+            const add = (r, c) => {
+                if (r < 0 || r >= this.size || c < 0 || c >= this.size) return;
+                if (r === qr && c === qc) return;
+                keys.add(r + ',' + c);
+            };
+
+            for (let i = 0; i < this.size; i++) {
+                add(qr, i); // fila
+                add(i, qc); // columna
+            }
+            const region = this.regions[qr][qc];
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    if (this.regions[r][c] === region) add(r, c); // mismo color
+                }
+            }
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    add(qr + dr, qc + dc); // adyacentes (la diagonal es lo nuevo)
+                }
+            }
+
+            return keys;
+        },
+
+        applyQueenCrosses(qr, qc) {
+            for (const key of this.affectedCells(qr, qc)) {
+                const [r, c] = key.split(',').map(Number);
+                this.autoCross[r][c]++;
+            }
+        },
+
+        removeQueenCrosses(qr, qc) {
+            for (const key of this.affectedCells(qr, qc)) {
+                const [r, c] = key.split(',').map(Number);
+                if (this.autoCross[r][c] > 0) this.autoCross[r][c]--;
+            }
+        },
+
+        // --- Sonido -----------------------------------------------------------
+        // Tonos cortos sintetizados con Web Audio: un tic apagado para la cruz,
+        // algo más lindo para la reina y un arpegio al ganar. Sin archivos.
+
+        toggleMute() {
+            this.muted = !this.muted;
+            localStorage.setItem('queens-muted', this.muted ? '1' : '0');
+            if (!this.muted) this.ensureAudio();
+        },
+
+        ensureAudio() {
+            if (this.muted) return null;
+            if (!this.audioCtx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                try {
+                    this.audioCtx = new AC();
+                } catch (e) {
+                    return null;
+                }
+            }
+            if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+            return this.audioCtx;
+        },
+
+        // Reproduce una secuencia de notas (una tras otra) con envolvente suave.
+        blip(freqs, { type = 'sine', gain = 0.15, dur = 0.12, gap = 0 } = {}) {
+            const ctx = this.ensureAudio();
+            if (!ctx) return;
+            const step = gap || dur * 0.9;
+            freqs.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const vol = ctx.createGain();
+                const start = ctx.currentTime + i * step;
+                osc.type = type;
+                osc.frequency.value = freq;
+                vol.gain.setValueAtTime(0.0001, start);
+                vol.gain.linearRampToValueAtTime(gain, start + 0.008);
+                vol.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+                osc.connect(vol);
+                vol.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + dur + 0.02);
+            });
+        },
+
+        sfxCross() {
+            if (this.muted) return;
+            // Al pintar de corrido llegan muchas cruces juntas: no encimamos tics.
+            const now = performance.now();
+            if (now - this.lastCrossAt < 45) return;
+            this.lastCrossAt = now;
+            this.blip([180], { type: 'triangle', gain: 0.05, dur: 0.05 });
+        },
+
+        sfxQueen() {
+            this.blip([659.25, 987.77], { type: 'triangle', gain: 0.12, dur: 0.13, gap: 0.075 });
+        },
+
+        sfxVictory() {
+            this.blip([523.25, 659.25, 783.99, 1046.5], { type: 'sine', gain: 0.16, dur: 0.26, gap: 0.13 });
         },
 
         get timeLabel() {
