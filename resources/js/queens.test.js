@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateQueensRegions, nextDeduction, solveQueens } from './queens';
+import { generateHardQueensRegions, generateQueensRegions, nextDeduction, rateQueensDifficulty, solveQueens } from './queens';
 
 const N = 8;
 
@@ -180,6 +180,42 @@ describe('nextDeduction (motor de pistas)', () => {
             }
 
             expect(queens).toBe(8);
+        }
+    });
+});
+
+describe('rateQueensDifficulty', () => {
+    it('devuelve un puntaje determinístico y coherente', () => {
+        for (let i = 0; i < 15; i++) {
+            const regions = generateQueensRegions();
+            const a = rateQueensDifficulty(regions);
+            const b = rateQueensDifficulty(regions);
+
+            // Mismo tablero, mismo puntaje (no hay azar en el motor).
+            expect(a).toEqual(b);
+            expect(a.score).toBeGreaterThanOrEqual(0);
+            expect(a.hardest).toBeGreaterThanOrEqual(1);
+            expect(a.hardest).toBeLessThanOrEqual(8);
+        }
+    });
+});
+
+describe('generateHardQueensRegions', () => {
+    it('entrega tableros válidos sesgados a difíciles', { timeout: 60_000 }, () => {
+        // El piso se elige bien por debajo del objetivo (14) para que el test no
+        // sea flaky: con 24 candidatos, quedar debajo de 6 es rarísimo — y 6 ya
+        // es la mediana de los tableros sin sesgo.
+        for (let i = 0; i < 10; i++) {
+            const regions = generateHardQueensRegions();
+
+            const seen = new Set();
+            for (let r = 0; r < N; r++) {
+                for (let c = 0; c < N; c++) seen.add(regions[r][c]);
+            }
+            expect(seen.size).toBe(8);
+            expect(solutionIsValid(regions, solveQueens(regions))).toBe(true);
+
+            expect(rateQueensDifficulty(regions).score).toBeGreaterThanOrEqual(6);
         }
     });
 });

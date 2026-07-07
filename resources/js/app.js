@@ -1,6 +1,6 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
-import { generateQueensRegions, nextDeduction, solveQueens } from './queens';
+import { generateHardQueensRegions, nextDeduction, solveQueens } from './queens';
 
 // Nombres de los tintes de región del tablero de Queens (--color-q1..q8, mismo
 // orden que los tokens del tema) para que la pista pueda decir "el color arena".
@@ -228,7 +228,8 @@ document.addEventListener('alpine:init', () => {
 
     // Tablero de Queens: TODO vive en el cliente, incluido armar la partida.
     // No hay ninguna llamada al backend para jugar ni para pedir un tablero
-    // nuevo; la generación está en generateQueensRegions() (resources/js/queens.js).
+    // nuevo; la generación (sesgada a tableros difíciles) está en
+    // generateHardQueensRegions() (resources/js/queens.js).
     Alpine.data('queens', () => ({
         size: 8,
         regions: [],
@@ -275,9 +276,10 @@ document.addEventListener('alpine:init', () => {
             this.stopTimer();
         },
 
-        // Arma un tablero nuevo (en el navegador) y arranca de cero.
+        // Arma un tablero nuevo (en el navegador) y arranca de cero. Sesgado a
+        // difícil: se generan candidatos y queda el que exige más deducción.
         newGame() {
-            this.regions = generateQueensRegions();
+            this.regions = generateHardQueensRegions();
             this.solution = null; // otro puzzle: se recalcula cuando pidan pista
             this.clearBoard();
             this.resetTimer();
