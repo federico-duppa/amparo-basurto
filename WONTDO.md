@@ -27,6 +27,10 @@ Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es 
 - **Energía o duración estimada por tarea.** Campos que nadie carga de forma sostenida; ruido en el formulario.
 - **Ceremonia GTD completa como flujo obligatorio** (inbox → clarificar → organizar como pasos forzados). La captura rápida y tachar siguen siendo el corazón del módulo; todo lo demás es opcional.
 
+## Compartir (`/compartir`)
+
+- **Compartir hacia la app desde iOS.** Safari/iOS no soporta Web Share Target para PWAs; darle share sheet a iPhone exigiría una app nativa o wrapper publicado, fuera de proporción para esta app. El alcance es Android (decisión de julio 2026, cuando se implementó el share target).
+
 ## Auto (`/auto`)
 
 - **Litros y consumo en las cargas de combustible.** Las cargas registran costo, no volumen; el módulo no calcula rendimiento.
