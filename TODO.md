@@ -11,13 +11,13 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 ## Auto (`/auto`)
 
-- **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono.
+- **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono. Seguir el patrón de los adjuntos de Salud (`health_attachments`: disk por defecto + ruta autenticada que redirige a URL firmada).
 - **Partir el componente `auto.panel`.** ~1.900 líneas y ~40 propiedades públicas en un solo single-file component. Livewire dehidrata y rehidrata **todas** las propiedades en cada interacción aunque haya un solo formulario abierto, así que el payload y el costo de checksum crecen sin necesidad. Seguir el patrón que ya usa Salud (`salud.panel` cuelga cuatro hijos Livewire) y separar en `auto.mantenimientos`, `auto.combustible`, `auto.documentos` y `auto.gastos`. Baja el payload por request y hace el módulo manejable.
 - **`spendingByPeriod()` agrupa en PHP, no en SQL.** Trae todos los mantenimientos y cargas con costo y agrupa por mes/año en memoria (decisión deliberada por portabilidad SQLite/Postgres). Con años de historia carga todo en cada render del panel; vigilar si escala y, llegado el caso, resolverlo con una query agregada compatible con ambos motores.
 
 ## Salud (`/salud`)
 
-- **Documentos adjuntos (recetas, órdenes, estudios, resultados).** Primera funcionalidad con archivos de la app: por el scale to zero de Laravel Cloud no pueden vivir en el disco del contenedor — necesita object storage (S3-compatible) y URLs firmadas para servirlos. Un documento va a poder colgar de una entrada del timeline o suelto en la historia.
+- **Aceptar imágenes además de PDF en los adjuntos.** La foto de una receta o de un resultado sacada con el teléfono es el caso más común después del PDF; hoy los adjuntos solo aceptan PDF.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
 
 ## Tareas (`/tareas`)
@@ -29,7 +29,7 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 
 ## Compartir (`/compartir`)
 
-- **Recibir imágenes y archivos compartidos.** Hoy el share target solo acepta texto (método GET). Recibir una foto o un PDF requiere `share_target` con POST `multipart/form-data` (`enctype` y `files` en el manifest, más un endpoint que reciba el upload) y un lugar donde guardar el archivo — se traba con la misma falta de object storage que los adjuntos de Salud y Auto.
+- **Recibir imágenes y archivos compartidos.** Hoy el share target solo acepta texto (método GET). Recibir una foto o un PDF requiere `share_target` con POST `multipart/form-data` (`enctype` y `files` en el manifest, más un endpoint que reciba el upload); para guardarlos ya existe el patrón de los adjuntos de Salud (object storage + URLs firmadas).
 - **Más destinos al compartir.** Hoy Amparo ofrece tarea o lista de compras; podrían sumarse otros destinos (un gasto de Plata, una entrada del timeline de Salud) cuando haya un caso de uso real.
 
 ## Juegos (`/juegos`)

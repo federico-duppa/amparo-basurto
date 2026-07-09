@@ -41,6 +41,16 @@ class HealthRecord extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Las filas caen por cascada en la base (incluidas las de las entradas,
+        // que no disparan eventos de Eloquent), pero los archivos de los
+        // adjuntos hay que borrarlos del disco: pasa cada uno por el modelo.
+        static::deleting(function (HealthRecord $record) {
+            $record->attachments()->get()->each->delete();
+        });
+    }
+
     public function isOwnedBy(User $user): bool
     {
         return $this->user_id === $user->id;
@@ -111,6 +121,16 @@ class HealthRecord extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(HealthEntry::class);
+    }
+
+    /**
+     * Todos los adjuntos de la historia: los sueltos y los que cuelgan de una entrada.
+     *
+     * @return HasMany<HealthAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(HealthAttachment::class);
     }
 
     /**
