@@ -69,7 +69,7 @@ Médico de cabecera, especialistas y sus teléfonos, por historia.
 
 Certificados, estudios, recetas, órdenes: los papeles de la historia, en PDF, siempre a mano en el teléfono. Un adjunto puede estar **suelto en la historia** (sección Adjuntos) o **colgar de una entrada del timeline** (se adjunta al anotar o al editar la entrada, y se ve como chip en la entrada).
 
-- Solo se aceptan **PDF de hasta 10 MB**, de a **10 archivos por vez**. Si un archivo no pasa, Amparo lo dice y no guarda nada de esa tanda.
+- Solo se aceptan **PDF de hasta 10 MB**, elegidos **de a uno**; una entrada puede juntar **hasta 10** antes de guardarse. Si un archivo no pasa, Amparo lo dice y no lo suma.
 - En la sección Adjuntos el PDF suelto **se guarda apenas termina de subir** (sin formulario); la lista muestra nombre original, fecha, tamaño y quién lo subió, del más nuevo al más viejo.
 - Abrir un adjunto siempre pasa por una **URL autenticada** que verifica el acceso a la historia; en producción redirige a una URL firmada de corta vida del object storage. Lo ajeno responde 404.
 - Cualquier persona con acceso a la historia puede **subir y eliminar** adjuntos (con confirmación), igual que las entradas. Eliminar un adjunto, su entrada o la historia borra también el archivo del almacenamiento.

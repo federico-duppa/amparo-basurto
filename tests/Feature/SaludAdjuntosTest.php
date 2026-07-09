@@ -49,7 +49,7 @@ class SaludAdjuntosTest extends TestCase
         $record = HealthRecord::factory()->for($this->user)->create();
 
         Livewire::test('salud.panel')
-            ->set('recordFiles', [UploadedFile::fake()->create('estudio.pdf', 120, 'application/pdf')])
+            ->set('recordFile', UploadedFile::fake()->create('estudio.pdf', 120, 'application/pdf'))
             ->assertHasNoErrors();
 
         $attachment = HealthAttachment::sole();
@@ -65,8 +65,8 @@ class SaludAdjuntosTest extends TestCase
         HealthRecord::factory()->for($this->user)->create();
 
         Livewire::test('salud.panel')
-            ->set('recordFiles', [UploadedFile::fake()->create('foto.jpg', 120, 'image/jpeg')])
-            ->assertHasErrors(['recordFiles.0' => 'mimes']);
+            ->set('recordFile', UploadedFile::fake()->create('foto.jpg', 120, 'image/jpeg'))
+            ->assertHasErrors(['recordFile' => 'mimes']);
 
         $this->assertDatabaseEmpty('health_attachments');
     }
@@ -76,8 +76,8 @@ class SaludAdjuntosTest extends TestCase
         HealthRecord::factory()->for($this->user)->create();
 
         Livewire::test('salud.panel')
-            ->set('recordFiles', [UploadedFile::fake()->create('pesado.pdf', 11_000, 'application/pdf')])
-            ->assertHasErrors(['recordFiles.0' => 'max']);
+            ->set('recordFile', UploadedFile::fake()->create('pesado.pdf', 11_000, 'application/pdf'))
+            ->assertHasErrors(['recordFile' => 'max']);
 
         $this->assertDatabaseEmpty('health_attachments');
     }
@@ -88,10 +88,8 @@ class SaludAdjuntosTest extends TestCase
 
         Livewire::test('salud.panel')
             ->set('entryTitle', 'Análisis de sangre')
-            ->set('entryFiles', [
-                UploadedFile::fake()->create('resultado.pdf', 80, 'application/pdf'),
-                UploadedFile::fake()->create('orden.pdf', 40, 'application/pdf'),
-            ])
+            ->set('entryFile', UploadedFile::fake()->create('resultado.pdf', 80, 'application/pdf'))
+            ->set('entryFile', UploadedFile::fake()->create('orden.pdf', 40, 'application/pdf'))
             ->call('addEntry')
             ->assertHasNoErrors();
 
@@ -103,6 +101,21 @@ class SaludAdjuntosTest extends TestCase
         ]);
     }
 
+    public function test_la_tanda_de_una_entrada_admite_hasta_10_archivos(): void
+    {
+        HealthRecord::factory()->for($this->user)->create();
+
+        $component = Livewire::test('salud.panel');
+
+        foreach (range(1, 10) as $i) {
+            $component->set('entryFile', UploadedFile::fake()->create("archivo-{$i}.pdf", 10, 'application/pdf'));
+        }
+
+        $component->assertHasNoErrors()
+            ->set('entryFile', UploadedFile::fake()->create('archivo-11.pdf', 10, 'application/pdf'))
+            ->assertHasErrors(['entryFiles']);
+    }
+
     public function test_puede_adjuntar_un_pdf_al_editar_una_entrada(): void
     {
         $record = HealthRecord::factory()->for($this->user)->create();
@@ -110,7 +123,7 @@ class SaludAdjuntosTest extends TestCase
 
         Livewire::test('salud.panel')
             ->call('startEditingEntry', $entry->id)
-            ->set('editEntryFiles', [UploadedFile::fake()->create('receta.pdf', 60, 'application/pdf')])
+            ->set('editEntryFile', UploadedFile::fake()->create('receta.pdf', 60, 'application/pdf'))
             ->call('saveEntry')
             ->assertHasNoErrors();
 
@@ -127,7 +140,7 @@ class SaludAdjuntosTest extends TestCase
         $record->members()->attach($this->user);
 
         Livewire::test('salud.panel')
-            ->set('recordFiles', [UploadedFile::fake()->create('certificado.pdf', 50, 'application/pdf')])
+            ->set('recordFile', UploadedFile::fake()->create('certificado.pdf', 50, 'application/pdf'))
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('health_attachments', [
