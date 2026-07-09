@@ -5,11 +5,12 @@ Listas de compras: anotar lo que falta, sacarlo de un toque cuando ya lo tenés,
 ## Qué hace
 
 - **Listas.** Cada persona puede tener varias listas (súper, farmacia, ferretería…). La primera vez que entrás, Amparo te deja una lista **"Súper"** ya creada así no arrancás con la pantalla en blanco. Se crean, renombran y eliminan; el selector de arriba cambia de una a otra.
-- **Anotar cosas.** Un campo de texto suma lo que escribas a la lista abierta. No se anota dos veces lo mismo (se compara sin distinguir mayúsculas ni espacios), así tocar un frecuente ya anotado no duplica.
+- **Anotar cosas.** Un campo de texto suma lo que escribas a la lista abierta. No se anota dos veces lo mismo (se compara sin distinguir mayúsculas ni espacios), así tocar un frecuente ya anotado no duplica. Todo lo que anotás queda además guardado en tu repertorio de **frecuentes** (si no estaba ya), sin pedir nada.
 - **Sacar de la lista.** Cuando ya tenés algo, lo tocás y sale de la lista al toque, sin confirmación — el gesto tiene que ser rápido. Sacar una cosa la borra: la lista es lo que **falta**, no un historial.
 - **Frecuentes.** El repertorio personal de cosas que comprás seguido, como chips que se suman con un toque (y se sacan con otro toque: el mismo chip prende y apaga). Son **de la persona, no de la lista**: el mismo repertorio sirve para todas tus listas.
   - La primera vez se siembra con productos comunes de supermercado (leche, pan, huevos, yerba, fideos, papas…) para no empezar de cero. Después los editás o borrás como cualquier otro; **no se vuelven a sembrar**.
-  - Al anotar algo se puede marcar **"Recordarlo para la próxima"** y queda guardado como frecuente. En el modo **Editar** de los frecuentes se suman y se olvidan de a uno.
+  - Todo lo que anotás escribiéndolo se guarda solo como frecuente. En el modo **Editar** de los frecuentes también se suman y se olvidan de a uno.
+  - **Se ordenan por uso, no alfabéticamente.** Cada frecuente lleva una ponderación que sube al anotarlo en una lista y al tacharlo como comprado (y baja si te arrepentís con el mismo chip). Lo que comprás seguido queda primero, a un toque; a igual peso, desempata el nombre.
 
 ## Compartir
 

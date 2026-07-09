@@ -75,20 +75,75 @@ class ComprasListaTest extends TestCase
         $this->assertSame(1, $list->items()->count());
     }
 
-    public function test_al_anotar_puede_recordarlo_como_frecuente(): void
+    public function test_al_anotar_queda_guardado_como_frecuente(): void
     {
         $list = ShoppingList::factory()->for($this->user)->create();
 
         Livewire::test('compras.lista', ['listId' => $list->id])
             ->set('newItem', 'Escarbadientes')
-            ->set('rememberNewItem', true)
             ->call('addItem')
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('frequent_items', [
             'user_id' => $this->user->id,
             'name' => 'Escarbadientes',
+            'weight' => 1,
         ]);
+    }
+
+    public function test_anotar_no_duplica_el_frecuente_si_ya_existe(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        FrequentItem::factory()->for($this->user)->create(['name' => 'Leche']);
+
+        Livewire::test('compras.lista', ['listId' => $list->id])
+            ->set('newItem', 'leche')
+            ->call('addItem')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $this->user->frequentItems()->count());
+    }
+
+    public function test_anotar_y_comprar_suman_ponderacion_al_frecuente(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $frequent = FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba', 'weight' => 0]);
+
+        $component = Livewire::test('compras.lista', ['listId' => $list->id])
+            ->set('newItem', 'Yerba')
+            ->call('addItem');
+
+        $this->assertSame(1, $frequent->refresh()->weight);
+
+        $item = $list->items()->where('name', 'Yerba')->sole();
+
+        $component->call('removeItem', $item->id);
+
+        $this->assertSame(2, $frequent->refresh()->weight);
+    }
+
+    public function test_arrepentirse_de_un_frecuente_devuelve_la_ponderacion(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $frequent = FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba', 'weight' => 0]);
+
+        Livewire::test('compras.lista', ['listId' => $list->id])
+            ->call('toggleFrequent', $frequent->id)
+            ->call('toggleFrequent', $frequent->id);
+
+        $this->assertSame(0, $frequent->refresh()->weight);
+    }
+
+    public function test_los_frecuentes_se_ordenan_por_ponderacion(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        FrequentItem::factory()->for($this->user)->create(['name' => 'Arroz', 'weight' => 0]);
+        FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba', 'weight' => 5]);
+
+        $frequents = Livewire::test('compras.lista', ['listId' => $list->id])
+            ->instance()->frequents;
+
+        $this->assertSame(['Yerba', 'Arroz'], $frequents->pluck('name')->all());
     }
 
     public function test_tocar_una_cosa_la_saca_de_la_lista(): void

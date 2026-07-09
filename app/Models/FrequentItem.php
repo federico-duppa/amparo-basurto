@@ -50,6 +50,7 @@ class FrequentItem extends Model
 
     protected $fillable = [
         'name',
+        'weight',
     ];
 
     /**
