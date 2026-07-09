@@ -11,7 +11,7 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 ## Auto (`/auto`)
 
-- **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono. Seguir el patrón de los adjuntos de Salud (`health_attachments`: disk por defecto + ruta autenticada que redirige a URL firmada).
+- **Adjuntar foto/archivo a los documentos.** Póliza, oblea de VTV, etc., para tenerlos a mano en el teléfono. Seguir el patrón de los adjuntos de Salud (`health_attachments`: disk por defecto + ruta autenticada que streamea el archivo como descarga).
 - **Partir el componente `auto.panel`.** ~1.900 líneas y ~40 propiedades públicas en un solo single-file component. Livewire dehidrata y rehidrata **todas** las propiedades en cada interacción aunque haya un solo formulario abierto, así que el payload y el costo de checksum crecen sin necesidad. Seguir el patrón que ya usa Salud (`salud.panel` cuelga cuatro hijos Livewire) y separar en `auto.mantenimientos`, `auto.combustible`, `auto.documentos` y `auto.gastos`. Baja el payload por request y hace el módulo manejable.
 - **`spendingByPeriod()` agrupa en PHP, no en SQL.** Trae todos los mantenimientos y cargas con costo y agrupa por mes/año en memoria (decisión deliberada por portabilidad SQLite/Postgres). Con años de historia carga todo en cada render del panel; vigilar si escala y, llegado el caso, resolverlo con una query agregada compatible con ambos motores.
 

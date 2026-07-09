@@ -154,7 +154,11 @@ class SaludAdjuntosTest extends TestCase
         $record = HealthRecord::factory()->for($this->user)->create();
         $attachment = $this->makeAttachment($record);
 
-        $this->get(route('salud.adjunto', $attachment))->assertOk();
+        // Descarga directa con el nombre original, sin redirigir a otra URL:
+        // en la PWA instalada una navegación externa saca al usuario de la app.
+        $this->get(route('salud.adjunto', $attachment))
+            ->assertOk()
+            ->assertDownload($attachment->original_name);
     }
 
     public function test_quien_tiene_la_historia_compartida_puede_descargar(): void
