@@ -14,7 +14,21 @@ class ShoppingItem extends Model
 
     protected $fillable = [
         'name',
+        'purchased_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'purchased_at' => 'datetime',
+        ];
+    }
+
+    /** Ya está comprada: tachada en la lista, a la espera de que la limpien. */
+    public function isPurchased(): bool
+    {
+        return $this->purchased_at !== null;
+    }
 
     /**
      * @return BelongsTo<ShoppingList, $this>

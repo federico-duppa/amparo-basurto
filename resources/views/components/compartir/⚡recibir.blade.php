@@ -88,13 +88,16 @@ new #[Title('Compartir')] class extends Component
         // A la lista va una cosa corta: la primera línea, recortada si hace falta.
         $name = Str::limit(trim(preg_split('/\R/', $draft)[0]), 79, '…');
 
-        $alreadyThere = $list->items()->get()
-            ->contains(fn ($item) => Str::lower(trim($item->name)) === Str::lower($name));
+        $existing = $list->items()->get()
+            ->first(fn ($item) => Str::lower(trim($item->name)) === Str::lower($name));
 
-        if (! $alreadyThere) {
+        if ($existing === null) {
             $item = $list->items()->make(['name' => $name]);
             $item->user_id = $user->id;
             $item->save();
+        } elseif ($existing->isPurchased()) {
+            // Estaba tachada en la lista: volver a mandarla la destacha.
+            $existing->update(['purchased_at' => null]);
         }
 
         $this->savedListName = $list->name;
