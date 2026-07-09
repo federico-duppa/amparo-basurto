@@ -911,7 +911,7 @@ new #[Title('Salud')] class extends Component
                 <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
                     @foreach ($this->documents as $document)
                         <li wire:key="attachment-{{ $document->id }}" class="flex items-center gap-2 py-2">
-                            <a href="{{ route('salud.adjunto', $document) }}" target="_blank"
+                            <a href="{{ route('salud.adjunto', $document) }}" download="{{ $document->original_name }}"
                                 class="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-cuero hover:text-ciruela focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela">
                                 {{-- Heroicon: paper-clip (outline) --}}
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5 shrink-0 text-cuero/60">
@@ -1186,7 +1186,7 @@ new #[Title('Salud')] class extends Component
                                             <ul class="mt-2 flex flex-wrap gap-2">
                                                 @foreach ($entry->attachments as $attachment)
                                                     <li wire:key="entry-attachment-{{ $attachment->id }}">
-                                                        <a href="{{ route('salud.adjunto', $attachment) }}" target="_blank"
+                                                        <a href="{{ route('salud.adjunto', $attachment) }}" download="{{ $attachment->original_name }}"
                                                             class="inline-flex min-h-11 items-center gap-1.5 rounded-sm border border-cuero/30 px-2.5 text-sm text-cuero/80 hover:text-ciruela focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela">
                                                             {{-- Heroicon: paper-clip (solid mini) --}}
                                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-cuero/60">

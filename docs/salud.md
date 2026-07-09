@@ -71,7 +71,7 @@ Certificados, estudios, recetas, órdenes: los papeles de la historia, en PDF, s
 
 - Solo se aceptan **PDF de hasta 10 MB**, elegidos **de a uno**; una entrada puede juntar **hasta 10** antes de guardarse. Si un archivo no pasa, Amparo lo dice y no lo suma.
 - En la sección Adjuntos el PDF suelto **se guarda apenas termina de subir** (sin formulario); la lista muestra nombre original, fecha, tamaño y quién lo subió, del más nuevo al más viejo.
-- Abrir un adjunto siempre pasa por una **URL autenticada** que verifica el acceso a la historia; en producción redirige a una URL firmada de corta vida del object storage. Lo ajeno responde 404.
+- Un adjunto se **descarga** por una URL autenticada que verifica el acceso a la historia y entrega el archivo directo, con su nombre original; se abre con el visor del teléfono. No hay URLs públicas ni navegación fuera de la app (pensado para la PWA instalada). Lo ajeno responde 404.
 - Cualquier persona con acceso a la historia puede **subir y eliminar** adjuntos (con confirmación), igual que las entradas. Eliminar un adjunto, su entrada o la historia borra también el archivo del almacenamiento.
 
 ## Entradas (el timeline)
