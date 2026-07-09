@@ -64,8 +64,13 @@ new #[Title('Salud')] class extends Component
     public string $editEntryTitle = '';
     public string $editEntryDetail = '';
 
-    // PDFs por subir: sueltos en la historia, de una entrada nueva o en edición.
-    public array $recordFiles = [];
+    // PDF recién elegido en cada input. Van de a uno: el driver S3 de las
+    // subidas temporales de Livewire no soporta inputs con [multiple].
+    public $recordFile = null;
+    public $entryFile = null;
+    public $editEntryFile = null;
+
+    // Tandas acumuladas de a un PDF, que se guardan junto con la entrada.
     public array $entryFiles = [];
     public array $editEntryFiles = [];
 
@@ -113,7 +118,7 @@ new #[Title('Salud')] class extends Component
         auth()->user()->accessibleHealthRecords()->findOrFail($id);
 
         $this->recordId = $id;
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFiles', 'entryFiles', 'editEntryFiles');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFile', 'entryFile', 'editEntryFile', 'entryFiles', 'editEntryFiles');
     }
 
     public function startEditingRecord(): void
@@ -158,7 +163,7 @@ new #[Title('Salud')] class extends Component
         $record->delete();
 
         $this->recordId = auth()->user()->accessibleHealthRecords()->min('health_records.id');
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFiles', 'entryFiles', 'editEntryFiles');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFile', 'entryFile', 'editEntryFile', 'entryFiles', 'editEntryFiles');
     }
 
     // --- Ficha médica ---------------------------------------------------------
@@ -332,25 +337,62 @@ new #[Title('Salud')] class extends Component
 
     // --- Adjuntos de la historia --------------------------------------------------
 
-    /** Los PDF sueltos se guardan apenas terminan de subir, sin formulario aparte. */
-    public function updatedRecordFiles(): void
+    /** El PDF suelto se guarda apenas termina de subir, sin formulario aparte. */
+    public function updatedRecordFile(): void
     {
+        if ($this->recordFile === null) {
+            return;
+        }
+
         $record = $this->requireRecord();
 
         try {
-            $this->validate(
-                $this->attachmentRules('recordFiles'),
-                $this->attachmentMessages('recordFiles'),
-            );
+            $this->validate($this->pickRules('recordFile'), $this->pickMessages('recordFile'));
         } catch (ValidationException $exception) {
-            // Limpio la tanda rechazada para que se pueda volver a intentar.
-            $this->recordFiles = [];
+            // Limpio el archivo rechazado para que se pueda volver a intentar.
+            $this->recordFile = null;
 
             throw $exception;
         }
 
-        $this->storeAttachments($record, null, $this->recordFiles);
-        $this->recordFiles = [];
+        $this->storeAttachments($record, null, [$this->recordFile]);
+        $this->recordFile = null;
+    }
+
+    /** Cada PDF elegido para una entrada se suma a su tanda; se guarda con ella. */
+    public function updatedEntryFile(): void
+    {
+        $this->addToBatch('entryFile', 'entryFiles');
+    }
+
+    public function updatedEditEntryFile(): void
+    {
+        $this->addToBatch('editEntryFile', 'editEntryFiles');
+    }
+
+    private function addToBatch(string $property, string $batch): void
+    {
+        if ($this->{$property} === null) {
+            return;
+        }
+
+        if (count($this->{$batch}) >= 10) {
+            $this->{$property} = null;
+            $this->addError($batch, 'Hasta 10 archivos por entrada.');
+
+            return;
+        }
+
+        try {
+            $this->validate($this->pickRules($property), $this->pickMessages($property));
+        } catch (ValidationException $exception) {
+            $this->{$property} = null;
+
+            throw $exception;
+        }
+
+        $this->{$batch}[] = $this->{$property};
+        $this->{$property} = null;
     }
 
     public function deleteAttachment(int $id): void
@@ -379,6 +421,19 @@ new #[Title('Salud')] class extends Component
         }
     }
 
+    private function pickRules(string $property): array
+    {
+        return [$property => ['file', 'mimes:pdf', 'max:10240']];
+    }
+
+    private function pickMessages(string $property): array
+    {
+        return [
+            $property.'.mimes' => 'Por ahora solo puedo guardar PDF.',
+            $property.'.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
+        ];
+    }
+
     private function attachmentRules(string $property): array
     {
         return [
@@ -390,7 +445,7 @@ new #[Title('Salud')] class extends Component
     private function attachmentMessages(string $property): array
     {
         return [
-            $property.'.max' => 'Hasta 10 archivos por vez.',
+            $property.'.max' => 'Hasta 10 archivos por entrada.',
             $property.'.*.mimes' => 'Por ahora solo puedo guardar PDF.',
             $property.'.*.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
         ];
@@ -838,7 +893,7 @@ new #[Title('Salud')] class extends Component
                     <p class="text-sm text-cuero/60">Certificados, estudios y otros PDF de la historia. Si es de una consulta puntual, también podés adjuntarlo al anotar la entrada.</p>
                 </div>
                 <label class="shrink-0">
-                    <input type="file" wire:model="recordFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                    <input type="file" wire:model="recordFile" accept="application/pdf,.pdf" class="peer sr-only"
                         x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                     <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm bg-monte px-4 text-sm font-medium text-crema hover:bg-monte/90 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-monte">
                         Subir PDF
@@ -846,10 +901,9 @@ new #[Title('Salud')] class extends Component
                 </label>
             </div>
 
-            <p wire:loading wire:target="recordFiles" class="text-sm text-cuero/60" role="status">Subiendo…</p>
+            <p wire:loading wire:target="recordFile" class="text-sm text-cuero/60" role="status">Subiendo…</p>
             <p x-cloak x-show="falloSubida" class="text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
-            @error('recordFiles') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
-            @error('recordFiles.*') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+            @error('recordFile') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
 
             @if ($this->documents->isEmpty())
                 <p class="text-sm text-cuero/60">Todavía no hay documentos en esta historia. Subí un PDF y queda guardado acá.</p>
@@ -970,13 +1024,13 @@ new #[Title('Salud')] class extends Component
                     <div x-data="{ falloSubida: false }">
                         <label class="inline-block">
                             <span class="sr-only">Adjuntar PDF a la entrada</span>
-                            <input type="file" wire:model="entryFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                            <input type="file" wire:model="entryFile" accept="application/pdf,.pdf" class="peer sr-only"
                                 x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                             <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
-                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional)</span>
+                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
                             </span>
                         </label>
-                        <p wire:loading wire:target="entryFiles" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
+                        <p wire:loading wire:target="entryFile" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
                         <p x-cloak x-show="falloSubida" class="mt-1 text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
                         @if ($entryFiles !== [])
                             <ul class="mt-2 space-y-1">
@@ -991,6 +1045,7 @@ new #[Title('Salud')] class extends Component
                                 @endforeach
                             </ul>
                         @endif
+                        @error('entryFile') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         @error('entryFiles') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                         @error('entryFiles.*') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                     </div>
@@ -1082,13 +1137,13 @@ new #[Title('Salud')] class extends Component
                                         @endif
                                         <label class="inline-block">
                                             <span class="sr-only">Adjuntar PDF a la entrada</span>
-                                            <input type="file" wire:model="editEntryFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                                            <input type="file" wire:model="editEntryFile" accept="application/pdf,.pdf" class="peer sr-only"
                                                 x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                                             <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
-                                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional)</span>
+                                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
                                             </span>
                                         </label>
-                                        <p wire:loading wire:target="editEntryFiles" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
+                                        <p wire:loading wire:target="editEntryFile" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
                                         <p x-cloak x-show="falloSubida" class="mt-1 text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
                                         @if ($editEntryFiles !== [])
                                             <ul class="mt-2 space-y-1">
@@ -1103,6 +1158,7 @@ new #[Title('Salud')] class extends Component
                                                 @endforeach
                                             </ul>
                                         @endif
+                                        @error('editEntryFile') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                         @error('editEntryFiles') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                         @error('editEntryFiles.*') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                     </div>
