@@ -158,16 +158,32 @@ new #[Title('Compras')] class extends Component
     }
 
     /**
-     * Sacar una cosa de la lista: el gesto de "ya la tengo". Un toque y afuera,
-     * sin confirmación — tiene que ser rápido. Comprarla pesa: el frecuente que
-     * coincida gana ponderación para aparecer antes.
+     * Tocar una cosa la tacha ("ya la compré") o la destacha si el toque fue
+     * un error. Comprarla pesa: el frecuente que coincida gana ponderación
+     * para aparecer antes; destachar la devuelve.
+     */
+    public function toggleItem(int $id): void
+    {
+        $item = $this->requireList()->items()->findOrFail($id);
+
+        if ($item->isPurchased()) {
+            $item->update(['purchased_at' => null]);
+            $this->bumpFrequent($item->name, -1);
+
+            return;
+        }
+
+        $item->update(['purchased_at' => now()]);
+        $this->bumpFrequent($item->name);
+    }
+
+    /**
+     * Sacar una cosa ya tachada: el tachito limpia la lista, sin confirmación.
+     * No toca la ponderación — el peso lo dio la compra, no la limpieza.
      */
     public function removeItem(int $id): void
     {
-        $item = $this->requireList()->items()->findOrFail($id);
-        $item->delete();
-
-        $this->bumpFrequent($item->name);
+        $this->requireList()->items()->findOrFail($id)->delete();
     }
 
     // --- Frecuentes --------------------------------------------------------
@@ -182,7 +198,7 @@ new #[Title('Compras')] class extends Component
         $list = $this->requireList();
 
         $matching = $list->items()->get()
-            ->filter(fn ($item) => $this->sameName($item->name, $frequent->name));
+            ->filter(fn ($item) => ! $item->isPurchased() && $this->sameName($item->name, $frequent->name));
 
         if ($matching->isNotEmpty()) {
             $list->items()->whereKey($matching->modelKeys())->delete();
@@ -231,16 +247,23 @@ new #[Title('Compras')] class extends Component
     // --- Helpers -----------------------------------------------------------
 
     /**
-     * Suma una cosa a la lista, salvo que ya esté anotada (mismo nombre).
-     * Devuelve si efectivamente la sumó.
+     * Suma una cosa a la lista, salvo que ya esté pendiente (mismo nombre).
+     * Si estaba tachada, volver a necesitarla la destacha en vez de duplicar.
+     * Devuelve si efectivamente la sumó (o revivió).
      */
     private function putOnList(ShoppingList $list, string $name): bool
     {
-        $alreadyThere = $list->items()->get()
-            ->contains(fn ($item) => $this->sameName($item->name, $name));
+        $existing = $list->items()->get()
+            ->first(fn ($item) => $this->sameName($item->name, $name));
 
-        if ($alreadyThere) {
-            return false;
+        if ($existing !== null) {
+            if (! $existing->isPurchased()) {
+                return false;
+            }
+
+            $existing->update(['purchased_at' => null]);
+
+            return true;
         }
 
         $item = $list->items()->make(['name' => $name]);
@@ -344,15 +367,19 @@ new #[Title('Compras')] class extends Component
     }
 
     /**
-     * Nombres (en minúscula) de lo que ya está en la lista, para prender los
-     * chips de frecuentes que correspondan.
+     * Nombres (en minúscula) de lo que falta comprar (sin contar lo tachado),
+     * para prender los chips de frecuentes que correspondan.
      *
      * @return array<int, string>
      */
     #[Computed]
     public function itemNames(): array
     {
-        return $this->items->map(fn ($item) => mb_strtolower($item->name))->all();
+        return $this->items
+            ->reject(fn ($item) => $item->isPurchased())
+            ->map(fn ($item) => mb_strtolower($item->name))
+            ->values()
+            ->all();
     }
 };
 ?>
@@ -361,7 +388,7 @@ new #[Title('Compras')] class extends Component
     <div class="flex items-start gap-2">
         <div class="min-w-0 flex-1">
             <h1 class="font-brand text-2xl font-bold">Compras</h1>
-            <p class="text-sm text-cuero/60">Anotá lo que falta y, cuando ya lo tenés, tocalo para sacarlo.</p>
+            <p class="text-sm text-cuero/60">Anotá lo que falta y, cuando ya lo tenés, tocalo para tacharlo.</p>
         </div>
     </div>
 
@@ -492,23 +519,43 @@ new #[Title('Compras')] class extends Component
                 Por ahora no falta nada. Sumá algo escribiéndolo o tocá un frecuente de abajo.
             </p>
         @else
-            <ul class="divide-y divide-cuero/10 rounded-sm border border-cuero/20">
+            <ul class="flex flex-wrap gap-2">
                 @foreach ($this->items as $item)
-                    <li wire:key="item-{{ $item->id }}">
+                    @php $comprado = $item->isPurchased(); @endphp
+                    <li wire:key="item-{{ $item->id }}" class="flex items-stretch">
                         <button
                             type="button"
-                            wire:click="removeItem({{ $item->id }})"
-                            aria-label="Ya tengo {{ $item->name }}, sacar de la lista"
-                            class="group flex min-h-12 w-full items-center gap-3 px-3 text-left hover:bg-cobre/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cobre"
+                            wire:click="toggleItem({{ $item->id }})"
+                            aria-pressed="{{ $comprado ? 'true' : 'false' }}"
+                            aria-label="{{ $comprado ? 'Volver a necesitar '.$item->name : 'Ya compré '.$item->name }}"
+                            @class([
+                                'flex min-h-11 items-center gap-1.5 rounded-sm border px-3 text-sm focus-visible:outline-2 focus-visible:outline-cobre',
+                                'rounded-r-none' => $comprado,
+                                'border-cobre bg-cobre/10 font-medium text-cobre line-through' => $comprado,
+                                'border-cuero/30 text-cuero/80 hover:text-cuero' => ! $comprado,
+                            ])
                         >
-                            <span class="grid size-6 shrink-0 place-items-center rounded-full border border-cuero/40 text-transparent group-hover:border-cobre group-hover:text-cobre" aria-hidden="true">
+                            @if ($comprado)
                                 {{-- Heroicon: check (mini) --}}
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
                                     <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />
                                 </svg>
-                            </span>
-                            <span class="min-w-0 flex-1 truncate group-hover:text-cuero/50 group-hover:line-through">{{ $item->name }}</span>
+                            @endif
+                            {{ $item->name }}
                         </button>
+                        @if ($comprado)
+                            <button
+                                type="button"
+                                wire:click="removeItem({{ $item->id }})"
+                                aria-label="Sacar {{ $item->name }} de la lista"
+                                class="grid min-h-11 w-9 place-items-center rounded-sm rounded-l-none border border-l-0 border-cobre text-cuero/50 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja"
+                            >
+                                {{-- Heroicon: trash (mini) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
+                                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        @endif
                     </li>
                 @endforeach
             </ul>

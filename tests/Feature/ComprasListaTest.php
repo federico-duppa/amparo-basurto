@@ -104,7 +104,7 @@ class ComprasListaTest extends TestCase
         $this->assertSame(1, $this->user->frequentItems()->count());
     }
 
-    public function test_anotar_y_comprar_suman_ponderacion_al_frecuente(): void
+    public function test_anotar_y_tachar_suman_ponderacion_y_destachar_la_devuelve(): void
     {
         $list = ShoppingList::factory()->for($this->user)->create();
         $frequent = FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba', 'weight' => 0]);
@@ -117,9 +117,26 @@ class ComprasListaTest extends TestCase
 
         $item = $list->items()->where('name', 'Yerba')->sole();
 
-        $component->call('removeItem', $item->id);
+        $component->call('toggleItem', $item->id);
 
         $this->assertSame(2, $frequent->refresh()->weight);
+
+        $component->call('toggleItem', $item->id);
+
+        $this->assertSame(1, $frequent->refresh()->weight);
+    }
+
+    public function test_limpiar_con_el_tachito_no_toca_la_ponderacion(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $frequent = FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba', 'weight' => 3]);
+        $item = ShoppingItem::factory()->for($list, 'list')->for($this->user)
+            ->create(['name' => 'Yerba', 'purchased_at' => now()]);
+
+        Livewire::test('compras.lista', ['listId' => $list->id])
+            ->call('removeItem', $item->id);
+
+        $this->assertSame(3, $frequent->refresh()->weight);
     }
 
     public function test_arrepentirse_de_un_frecuente_devuelve_la_ponderacion(): void
@@ -146,15 +163,61 @@ class ComprasListaTest extends TestCase
         $this->assertSame(['Yerba', 'Arroz'], $frequents->pluck('name')->all());
     }
 
-    public function test_tocar_una_cosa_la_saca_de_la_lista(): void
+    public function test_tocar_una_cosa_la_tacha_y_otro_toque_la_destacha(): void
     {
         $list = ShoppingList::factory()->for($this->user)->create();
         $item = ShoppingItem::factory()->for($list, 'list')->for($this->user)->create();
+
+        $component = Livewire::test('compras.lista', ['listId' => $list->id])
+            ->call('toggleItem', $item->id);
+
+        $this->assertNotNull($item->refresh()->purchased_at);
+        $this->assertDatabaseHas('shopping_items', ['id' => $item->id]);
+
+        $component->call('toggleItem', $item->id);
+
+        $this->assertNull($item->refresh()->purchased_at);
+    }
+
+    public function test_el_tachito_saca_una_cosa_de_la_lista(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $item = ShoppingItem::factory()->for($list, 'list')->for($this->user)
+            ->create(['purchased_at' => now()]);
 
         Livewire::test('compras.lista', ['listId' => $list->id])
             ->call('removeItem', $item->id);
 
         $this->assertDatabaseMissing('shopping_items', ['id' => $item->id]);
+    }
+
+    public function test_anotar_algo_tachado_lo_destacha_en_vez_de_duplicar(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $item = ShoppingItem::factory()->for($list, 'list')->for($this->user)
+            ->create(['name' => 'Leche', 'purchased_at' => now()]);
+
+        Livewire::test('compras.lista', ['listId' => $list->id])
+            ->set('newItem', 'leche')
+            ->call('addItem')
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $list->items()->count());
+        $this->assertNull($item->refresh()->purchased_at);
+    }
+
+    public function test_un_frecuente_destacha_lo_tachado_en_vez_de_sacarlo(): void
+    {
+        $list = ShoppingList::factory()->for($this->user)->create();
+        $frequent = FrequentItem::factory()->for($this->user)->create(['name' => 'Yerba']);
+        $item = ShoppingItem::factory()->for($list, 'list')->for($this->user)
+            ->create(['name' => 'Yerba', 'purchased_at' => now()]);
+
+        Livewire::test('compras.lista', ['listId' => $list->id])
+            ->call('toggleFrequent', $frequent->id);
+
+        $this->assertSame(1, $list->items()->count());
+        $this->assertNull($item->refresh()->purchased_at);
     }
 
     public function test_un_frecuente_se_suma_y_se_saca_con_el_mismo_toque(): void
