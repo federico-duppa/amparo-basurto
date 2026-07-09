@@ -5,13 +5,16 @@ use App\Models\HealthEntry;
 use App\Models\HealthRecord;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Salud')] class extends Component
 {
     use SharesWithMembers;
+    use WithFileUploads;
 
     /** Entradas del timeline visibles por página; "Ver más" agranda la ventana. */
     private const ENTRIES_PAGE = 20;
@@ -61,6 +64,11 @@ new #[Title('Salud')] class extends Component
     public string $editEntryTitle = '';
     public string $editEntryDetail = '';
 
+    // PDFs por subir: sueltos en la historia, de una entrada nueva o en edición.
+    public array $recordFiles = [];
+    public array $entryFiles = [];
+    public array $editEntryFiles = [];
+
     // Filtros del timeline.
     public string $search = '';
     public string $filterType = '';
@@ -105,7 +113,7 @@ new #[Title('Salud')] class extends Component
         auth()->user()->accessibleHealthRecords()->findOrFail($id);
 
         $this->recordId = $id;
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFiles', 'entryFiles', 'editEntryFiles');
     }
 
     public function startEditingRecord(): void
@@ -150,7 +158,7 @@ new #[Title('Salud')] class extends Component
         $record->delete();
 
         $this->recordId = auth()->user()->accessibleHealthRecords()->min('health_records.id');
-        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit');
+        $this->reset('editingRecord', 'editingFicha', 'addingEntry', 'editingEntryId', 'addingRecord', 'search', 'filterType', 'entriesLimit', 'recordFiles', 'entryFiles', 'editEntryFiles');
     }
 
     // --- Ficha médica ---------------------------------------------------------
@@ -228,9 +236,11 @@ new #[Title('Salud')] class extends Component
             'entryType' => ['required', Rule::in(array_keys(HealthEntry::TYPES))],
             'entryTitle' => ['required', 'string', 'max:120'],
             'entryDetail' => ['nullable', 'string', 'max:5000'],
+            ...$this->attachmentRules('entryFiles'),
         ], [
             'entryDate.required' => '¿De qué día es?',
             'entryTitle.required' => 'Ponele un título, aunque sea corto.',
+            ...$this->attachmentMessages('entryFiles'),
         ]);
 
         $entry = $record->entries()->make([
@@ -242,7 +252,9 @@ new #[Title('Salud')] class extends Component
         $entry->user_id = auth()->id();
         $entry->save();
 
-        $this->reset('entryTitle', 'entryDetail', 'addingEntry');
+        $this->storeAttachments($record, $entry, $this->entryFiles);
+
+        $this->reset('entryTitle', 'entryDetail', 'entryFiles', 'addingEntry');
         $this->entryDate = now()->format('Y-m-d');
         $this->entryType = 'consulta';
     }
@@ -256,21 +268,25 @@ new #[Title('Salud')] class extends Component
         $this->editEntryType = $entry->type;
         $this->editEntryTitle = $entry->title;
         $this->editEntryDetail = (string) $entry->detail;
+        $this->editEntryFiles = [];
         $this->resetValidation();
     }
 
     public function saveEntry(): void
     {
-        $entry = $this->requireRecord()->entries()->findOrFail($this->editingEntryId);
+        $record = $this->requireRecord();
+        $entry = $record->entries()->findOrFail($this->editingEntryId);
 
         $data = $this->validate([
             'editEntryDate' => ['required', 'date'],
             'editEntryType' => ['required', Rule::in(array_keys(HealthEntry::TYPES))],
             'editEntryTitle' => ['required', 'string', 'max:120'],
             'editEntryDetail' => ['nullable', 'string', 'max:5000'],
+            ...$this->attachmentRules('editEntryFiles'),
         ], [
             'editEntryDate.required' => '¿De qué día es?',
             'editEntryTitle.required' => 'Ponele un título, aunque sea corto.',
+            ...$this->attachmentMessages('editEntryFiles'),
         ]);
 
         $entry->update([
@@ -280,12 +296,14 @@ new #[Title('Salud')] class extends Component
             'detail' => trim($this->editEntryDetail) === '' ? null : trim($this->editEntryDetail),
         ]);
 
+        $this->storeAttachments($record, $entry, $this->editEntryFiles);
+
         $this->cancelEditEntry();
     }
 
     public function cancelEditEntry(): void
     {
-        $this->reset('editingEntryId', 'editEntryDate', 'editEntryType', 'editEntryTitle', 'editEntryDetail');
+        $this->reset('editingEntryId', 'editEntryDate', 'editEntryType', 'editEntryTitle', 'editEntryDetail', 'editEntryFiles');
         $this->resetValidation();
     }
 
@@ -296,6 +314,86 @@ new #[Title('Salud')] class extends Component
         if ($this->editingEntryId === $id) {
             $this->cancelEditEntry();
         }
+    }
+
+    /** Saca de la tanda un PDF elegido para una entrada nueva, antes de guardar. */
+    public function removeEntryFile(int $index): void
+    {
+        unset($this->entryFiles[$index]);
+        $this->entryFiles = array_values($this->entryFiles);
+    }
+
+    /** Ídem para la tanda de una entrada en edición. */
+    public function removeEditEntryFile(int $index): void
+    {
+        unset($this->editEntryFiles[$index]);
+        $this->editEntryFiles = array_values($this->editEntryFiles);
+    }
+
+    // --- Adjuntos de la historia --------------------------------------------------
+
+    /** Los PDF sueltos se guardan apenas terminan de subir, sin formulario aparte. */
+    public function updatedRecordFiles(): void
+    {
+        $record = $this->requireRecord();
+
+        try {
+            $this->validate(
+                $this->attachmentRules('recordFiles'),
+                $this->attachmentMessages('recordFiles'),
+            );
+        } catch (ValidationException $exception) {
+            // Limpio la tanda rechazada para que se pueda volver a intentar.
+            $this->recordFiles = [];
+
+            throw $exception;
+        }
+
+        $this->storeAttachments($record, null, $this->recordFiles);
+        $this->recordFiles = [];
+    }
+
+    public function deleteAttachment(int $id): void
+    {
+        // Cualquiera con acceso a la historia; el modelo borra también el archivo.
+        $this->requireRecord()->attachments()->findOrFail($id)->delete();
+    }
+
+    private function storeAttachments(HealthRecord $record, ?HealthEntry $entry, array $files): void
+    {
+        foreach ($files as $file) {
+            // Nombre y tamaño se leen antes de store(): en el mismo disk,
+            // Livewire mueve el archivo temporal y después ya no está.
+            $originalName = $file->getClientOriginalName();
+            $size = $file->getSize();
+
+            $attachment = $record->attachments()->make([
+                'disk' => config('filesystems.default'),
+                'path' => $file->store('salud/'.$record->id),
+                'original_name' => $originalName,
+                'size' => $size,
+            ]);
+            $attachment->health_entry_id = $entry?->id;
+            $attachment->user_id = auth()->id();
+            $attachment->save();
+        }
+    }
+
+    private function attachmentRules(string $property): array
+    {
+        return [
+            $property => ['array', 'max:10'],
+            $property.'.*' => ['file', 'mimes:pdf', 'max:10240'],
+        ];
+    }
+
+    private function attachmentMessages(string $property): array
+    {
+        return [
+            $property.'.max' => 'Hasta 10 archivos por vez.',
+            $property.'.*.mimes' => 'Por ahora solo puedo guardar PDF.',
+            $property.'.*.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
+        ];
     }
 
     public function filterByType(string $type): void
@@ -354,6 +452,13 @@ new #[Title('Salud')] class extends Component
         return $this->record?->members()->orderBy('name')->get() ?? collect();
     }
 
+    /** Los PDF sueltos de la historia (los de entradas se ven en el timeline). */
+    #[Computed]
+    public function documents(): Collection
+    {
+        return $this->record?->attachments()->whereNull('health_entry_id')->with('user')->orderByDesc('id')->get() ?? collect();
+    }
+
     /**
      * Entradas del timeline, de la más reciente a la más vieja, filtradas
      * por tipo y por búsqueda de texto si corresponde. Se muestran de a
@@ -390,6 +495,7 @@ new #[Title('Salud')] class extends Component
         }
 
         return $record->entries()
+            ->with('attachments')
             ->when($this->filterType !== '', fn ($query) => $query->where('type', $this->filterType))
             ->when(trim($this->search) !== '', function ($query) {
                 $term = '%'.trim($this->search).'%';
@@ -562,7 +668,7 @@ new #[Title('Salud')] class extends Component
                                 </svg>
                             </button>
                             <button type="button" wire:click="deleteRecord({{ $record->id }})"
-                                wire:confirm="Vas a eliminar la historia clínica de {{ $record->titular }} con todas sus entradas. Esto no se puede deshacer."
+                                wire:confirm="Vas a eliminar la historia clínica de {{ $record->titular }} con todas sus entradas y sus adjuntos. Esto no se puede deshacer."
                                 aria-label="Eliminar historia"
                                 class="grid size-11 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
                                 {{-- Heroicon: trash (outline) --}}
@@ -724,6 +830,59 @@ new #[Title('Salud')] class extends Component
         {{-- Contactos médicos --}}
         <livewire:salud.contactos :record-id="$record->id" :key="'contactos-'.$record->id" />
 
+        {{-- Adjuntos: PDFs sueltos de la historia --}}
+        <div class="space-y-3 rounded-sm border border-cuero/20 p-4" x-data="{ falloSubida: false }">
+            <div class="flex flex-wrap items-start gap-2">
+                <div class="min-w-0 flex-1">
+                    <h2 class="font-brand text-lg font-bold">Adjuntos</h2>
+                    <p class="text-sm text-cuero/60">Certificados, estudios y otros PDF de la historia. Si es de una consulta puntual, también podés adjuntarlo al anotar la entrada.</p>
+                </div>
+                <label class="shrink-0">
+                    <input type="file" wire:model="recordFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                        x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
+                    <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm bg-monte px-4 text-sm font-medium text-crema hover:bg-monte/90 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-monte">
+                        Subir PDF
+                    </span>
+                </label>
+            </div>
+
+            <p wire:loading wire:target="recordFiles" class="text-sm text-cuero/60" role="status">Subiendo…</p>
+            <p x-cloak x-show="falloSubida" class="text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
+            @error('recordFiles') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+            @error('recordFiles.*') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+
+            @if ($this->documents->isEmpty())
+                <p class="text-sm text-cuero/60">Todavía no hay documentos en esta historia. Subí un PDF y queda guardado acá.</p>
+            @else
+                <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
+                    @foreach ($this->documents as $document)
+                        <li wire:key="attachment-{{ $document->id }}" class="flex items-center gap-2 py-2">
+                            <a href="{{ route('salud.adjunto', $document) }}" target="_blank"
+                                class="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-cuero hover:text-ciruela focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela">
+                                {{-- Heroicon: paper-clip (outline) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5 shrink-0 text-cuero/60">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                                </svg>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-medium">{{ $document->original_name }}</span>
+                                    <span class="block text-xs text-cuero/50">{{ $document->created_at->format('d/m/Y') }} · {{ $document->sizeLabel() }} · {{ $document->user->name }}</span>
+                                </span>
+                            </a>
+                            <button type="button" wire:click="deleteAttachment({{ $document->id }})"
+                                wire:confirm="Vas a eliminar {{ $document->original_name }}. Esto no se puede deshacer."
+                                aria-label="Eliminar {{ $document->original_name }}"
+                                class="grid size-11 shrink-0 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                {{-- Heroicon: trash (outline) --}}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                </svg>
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
         {{-- Compartir (solo el dueño) --}}
         @if ($this->isOwner)
             <div class="space-y-3 rounded-sm border border-cuero/20 p-4">
@@ -808,6 +967,33 @@ new #[Title('Salud')] class extends Component
                             class="w-full rounded-sm border border-cuero/30 bg-crema px-3 py-2 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"></textarea>
                         @error('entryDetail') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                     </div>
+                    <div x-data="{ falloSubida: false }">
+                        <label class="inline-block">
+                            <span class="sr-only">Adjuntar PDF a la entrada</span>
+                            <input type="file" wire:model="entryFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                                x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
+                            <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
+                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional)</span>
+                            </span>
+                        </label>
+                        <p wire:loading wire:target="entryFiles" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
+                        <p x-cloak x-show="falloSubida" class="mt-1 text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
+                        @if ($entryFiles !== [])
+                            <ul class="mt-2 space-y-1">
+                                @foreach ($entryFiles as $index => $file)
+                                    <li class="flex items-center gap-2 text-sm">
+                                        <span class="min-w-0 flex-1 truncate">{{ $file->getClientOriginalName() }}</span>
+                                        <button type="button" wire:click="removeEntryFile({{ $index }})"
+                                            class="min-h-11 shrink-0 rounded-sm px-2 text-sm text-cuero/70 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                            Quitar
+                                        </button>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                        @error('entryFiles') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                        @error('entryFiles.*') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                    </div>
                     <div class="flex gap-2">
                         <button type="submit" wire:loading.attr="disabled"
                             class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60">
@@ -879,6 +1065,47 @@ new #[Title('Salud')] class extends Component
                                             class="w-full rounded-sm border border-cuero/30 bg-crema px-3 py-2 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"></textarea>
                                         @error('editEntryDetail') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
                                     </div>
+                                    <div x-data="{ falloSubida: false }">
+                                        @if ($entry->attachments->isNotEmpty())
+                                            <ul class="mb-2 space-y-1">
+                                                @foreach ($entry->attachments as $attachment)
+                                                    <li wire:key="edit-attachment-{{ $attachment->id }}" class="flex items-center gap-2 text-sm">
+                                                        <span class="min-w-0 flex-1 truncate">{{ $attachment->original_name }}</span>
+                                                        <button type="button" wire:click="deleteAttachment({{ $attachment->id }})"
+                                                            wire:confirm="Vas a eliminar {{ $attachment->original_name }}. Esto no se puede deshacer."
+                                                            class="min-h-11 shrink-0 rounded-sm px-2 text-sm text-cuero/70 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                                            Eliminar
+                                                        </button>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
+                                        <label class="inline-block">
+                                            <span class="sr-only">Adjuntar PDF a la entrada</span>
+                                            <input type="file" wire:model="editEntryFiles" multiple accept="application/pdf,.pdf" class="peer sr-only"
+                                                x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
+                                            <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
+                                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional)</span>
+                                            </span>
+                                        </label>
+                                        <p wire:loading wire:target="editEntryFiles" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
+                                        <p x-cloak x-show="falloSubida" class="mt-1 text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
+                                        @if ($editEntryFiles !== [])
+                                            <ul class="mt-2 space-y-1">
+                                                @foreach ($editEntryFiles as $index => $file)
+                                                    <li class="flex items-center gap-2 text-sm">
+                                                        <span class="min-w-0 flex-1 truncate">{{ $file->getClientOriginalName() }}</span>
+                                                        <button type="button" wire:click="removeEditEntryFile({{ $index }})"
+                                                            class="min-h-11 shrink-0 rounded-sm px-2 text-sm text-cuero/70 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                                            Quitar
+                                                        </button>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
+                                        @error('editEntryFiles') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                        @error('editEntryFiles.*') <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                    </div>
                                     <div class="flex gap-2">
                                         <button type="submit"
                                             class="min-h-11 rounded-sm bg-monte px-4 font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte">
@@ -899,6 +1126,22 @@ new #[Title('Salud')] class extends Component
                                         @if ($entry->detail)
                                             <p class="mt-1 text-sm text-cuero/80 whitespace-pre-line">{{ $entry->detail }}</p>
                                         @endif
+                                        @if ($entry->attachments->isNotEmpty())
+                                            <ul class="mt-2 flex flex-wrap gap-2">
+                                                @foreach ($entry->attachments as $attachment)
+                                                    <li wire:key="entry-attachment-{{ $attachment->id }}">
+                                                        <a href="{{ route('salud.adjunto', $attachment) }}" target="_blank"
+                                                            class="inline-flex min-h-11 items-center gap-1.5 rounded-sm border border-cuero/30 px-2.5 text-sm text-cuero/80 hover:text-ciruela focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela">
+                                                            {{-- Heroicon: paper-clip (solid mini) --}}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-cuero/60">
+                                                                <path fill-rule="evenodd" d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a3 3 0 0 0 4.241 4.243h.001l.497-.5a.75.75 0 0 1 1.064 1.057l-.498.501-.002.002a4.5 4.5 0 0 1-6.364-6.364l7-7a4.5 4.5 0 0 1 6.368 6.36l-3.455 3.553A2.625 2.625 0 1 1 9.52 9.52l3.45-3.451a.75.75 0 1 1 1.061 1.06l-3.45 3.451a1.125 1.125 0 0 0 1.587 1.595l3.454-3.553a3 3 0 0 0 0-4.242Z" clip-rule="evenodd" />
+                                                            </svg>
+                                                            <span class="max-w-48 truncate">{{ $attachment->original_name }}</span>
+                                                        </a>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
                                     </div>
                                     <div class="flex shrink-0 items-center">
                                         <button type="button" wire:click="startEditingEntry({{ $entry->id }})" aria-label="Editar entrada"
@@ -909,7 +1152,7 @@ new #[Title('Salud')] class extends Component
                                             </svg>
                                         </button>
                                         <button type="button" wire:click="deleteEntry({{ $entry->id }})"
-                                            wire:confirm="Vas a eliminar esta entrada. Esto no se puede deshacer."
+                                            wire:confirm="Vas a eliminar esta entrada{{ $entry->attachments->isNotEmpty() ? ' con sus adjuntos' : '' }}. Esto no se puede deshacer."
                                             aria-label="Eliminar entrada"
                                             class="grid size-11 place-items-center text-cuero/60 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
                                             {{-- Heroicon: trash (outline) --}}

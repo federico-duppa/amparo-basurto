@@ -6,6 +6,7 @@ use Database\Factories\HealthEntryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HealthEntry extends Model
 {
@@ -38,6 +39,15 @@ class HealthEntry extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Los adjuntos de la entrada se van con ella: por el modelo, para que
+        // además de la fila se borre el archivo del disco.
+        static::deleting(function (HealthEntry $entry) {
+            $entry->attachments()->get()->each->delete();
+        });
+    }
+
     public function typeLabel(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
@@ -59,5 +69,15 @@ class HealthEntry extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Los PDF que cuelgan de esta entrada (el estudio, la receta, la orden).
+     *
+     * @return HasMany<HealthAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(HealthAttachment::class);
     }
 }

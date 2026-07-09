@@ -1,6 +1,6 @@
 # Salud (`/salud`)
 
-Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro) o la de una mascota. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
+Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro) o la de una mascota. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**), **adjuntos** (PDF de certificados, estudios, recetas) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
 
 Como en la ficha, **todas las secciones estructuradas son del día a día**: cualquier persona con acceso a la historia (dueño o compartida) las opera completas. Eliminar la historia borra también todo lo anotado en ellas.
 
@@ -65,13 +65,22 @@ Médico de cabecera, especialistas y sus teléfonos, por historia.
 - La lista va por orden alfabético y el teléfono es un **link para llamar** directo desde el teléfono.
 - Se editan y eliminan (con confirmación).
 
+## Adjuntos
+
+Certificados, estudios, recetas, órdenes: los papeles de la historia, en PDF, siempre a mano en el teléfono. Un adjunto puede estar **suelto en la historia** (sección Adjuntos) o **colgar de una entrada del timeline** (se adjunta al anotar o al editar la entrada, y se ve como chip en la entrada).
+
+- Solo se aceptan **PDF de hasta 10 MB**, de a **10 archivos por vez**. Si un archivo no pasa, Amparo lo dice y no guarda nada de esa tanda.
+- En la sección Adjuntos el PDF suelto **se guarda apenas termina de subir** (sin formulario); la lista muestra nombre original, fecha, tamaño y quién lo subió, del más nuevo al más viejo.
+- Abrir un adjunto siempre pasa por una **URL autenticada** que verifica el acceso a la historia; en producción redirige a una URL firmada de corta vida del object storage. Lo ajeno responde 404.
+- Cualquier persona con acceso a la historia puede **subir y eliminar** adjuntos (con confirmación), igual que las entradas. Eliminar un adjunto, su entrada o la historia borra también el archivo del almacenamiento.
+
 ## Entradas (el timeline)
 
 Información libre con fecha: el corazón de la historia.
 
 - Cada entrada tiene **fecha** (precargada con hoy), **tipo**, **título** y **detalle opcional** (texto libre). Los tipos son cinco y livianos a propósito: **consulta, estudio, medicación, vacuna y nota** — sirven para filtrar y dar contexto, no para burocratizar la carga.
 - La lista va de la más reciente a la más vieja y se muestra **de a 20**: "Ver más entradas" agranda la ventana (que vuelve al principio al cambiar de historia o de filtro). Cada entrada guarda **quién la anotó**.
-- Cada entrada se puede **editar** en línea o **eliminar**, con confirmación (también las que anotó otra persona, igual que en Auto).
+- Cada entrada se puede **editar** en línea o **eliminar**, con confirmación (también las que anotó otra persona, igual que en Auto). Una entrada puede llevar **PDF adjuntos** (ver [Adjuntos](#adjuntos)); al eliminarla se van con ella.
 - **Filtros:** por tipo (un toque activa el filtro, otro toque lo saca) y por **búsqueda de texto** sobre título y detalle, combinables. Sin resultados, Amparo lo dice ("No encontré nada con eso.").
 
 ## Compartir
@@ -86,4 +95,4 @@ Mismo patrón que Auto:
 
 ## Backlog
 
-Lo pendiente de este módulo (documentos adjuntos, reporte imprimible y más) vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).
+Lo pendiente de este módulo (reporte imprimible y más) vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).
