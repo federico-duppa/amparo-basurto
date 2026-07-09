@@ -18,7 +18,6 @@ new #[Title('Compras')] class extends Component
 
     // Sumar una cosa escribiéndola.
     public string $newItem = '';
-    public bool $rememberNewItem = false;
 
     // Alta de una lista nueva.
     public bool $addingList = false;
@@ -82,7 +81,7 @@ new #[Title('Compras')] class extends Component
     public function selectList(int $id): void
     {
         $this->listId = $id;
-        $this->reset('newItem', 'rememberNewItem', 'editingList', 'sharing', 'managingFrequents', 'shareUsername', 'newFrequent');
+        $this->reset('newItem', 'editingList', 'sharing', 'managingFrequents', 'shareUsername', 'newFrequent');
         $this->resetValidation();
     }
 
@@ -148,22 +147,27 @@ new #[Title('Compras')] class extends Component
 
         $name = trim($data['newItem']);
 
-        $this->putOnList($list, $name);
+        // Todo lo anotado queda también en el repertorio de frecuentes.
+        $this->rememberFrequent($name);
 
-        if ($this->rememberNewItem) {
-            $this->rememberFrequent($name);
+        if ($this->putOnList($list, $name)) {
+            $this->bumpFrequent($name);
         }
 
-        $this->reset('newItem', 'rememberNewItem');
+        $this->reset('newItem');
     }
 
     /**
      * Sacar una cosa de la lista: el gesto de "ya la tengo". Un toque y afuera,
-     * sin confirmación — tiene que ser rápido.
+     * sin confirmación — tiene que ser rápido. Comprarla pesa: el frecuente que
+     * coincida gana ponderación para aparecer antes.
      */
     public function removeItem(int $id): void
     {
-        $this->requireList()->items()->findOrFail($id)->delete();
+        $item = $this->requireList()->items()->findOrFail($id);
+        $item->delete();
+
+        $this->bumpFrequent($item->name);
     }
 
     // --- Frecuentes --------------------------------------------------------
@@ -183,10 +187,15 @@ new #[Title('Compras')] class extends Component
         if ($matching->isNotEmpty()) {
             $list->items()->whereKey($matching->modelKeys())->delete();
 
+            // Arrepentirse devuelve el peso que había sumado el toque de ida.
+            $this->bumpFrequent($frequent->name, -1);
+
             return;
         }
 
-        $this->putOnList($list, $frequent->name);
+        if ($this->putOnList($list, $frequent->name)) {
+            $this->bumpFrequent($frequent->name);
+        }
     }
 
     public function addFrequent(): void
@@ -221,19 +230,37 @@ new #[Title('Compras')] class extends Component
 
     // --- Helpers -----------------------------------------------------------
 
-    /** Suma una cosa a la lista, salvo que ya esté anotada (mismo nombre). */
-    private function putOnList(ShoppingList $list, string $name): void
+    /**
+     * Suma una cosa a la lista, salvo que ya esté anotada (mismo nombre).
+     * Devuelve si efectivamente la sumó.
+     */
+    private function putOnList(ShoppingList $list, string $name): bool
     {
         $alreadyThere = $list->items()->get()
             ->contains(fn ($item) => $this->sameName($item->name, $name));
 
         if ($alreadyThere) {
-            return;
+            return false;
         }
 
         $item = $list->items()->make(['name' => $name]);
         $item->user_id = auth()->id();
         $item->save();
+
+        return true;
+    }
+
+    /**
+     * Ajusta la ponderación del frecuente que coincida con ese nombre: anotar
+     * y comprar suman, arrepentirse resta. El peso ordena los frecuentes para
+     * que lo más comprado quede primero.
+     */
+    private function bumpFrequent(string $name, int $delta = 1): void
+    {
+        $frequent = auth()->user()->frequentItems()->get()
+            ->first(fn ($frequent) => $this->sameName($frequent->name, $name));
+
+        $frequent?->update(['weight' => max(0, $frequent->weight + $delta)]);
     }
 
     /** Guarda un frecuente para el usuario, salvo que ya lo tenga. */
@@ -313,7 +340,7 @@ new #[Title('Compras')] class extends Component
     #[Computed]
     public function frequents(): Collection
     {
-        return auth()->user()->frequentItems()->orderBy('name')->get();
+        return auth()->user()->frequentItems()->orderByDesc('weight')->orderBy('name')->get();
     }
 
     /**
@@ -457,11 +484,6 @@ new #[Title('Compras')] class extends Component
                 </button>
             </div>
             @error('newItem') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
-            <label class="flex items-center gap-2 text-sm text-cuero/70">
-                <input type="checkbox" wire:model="rememberNewItem"
-                    class="size-4 rounded-sm border-cuero/40 text-cobre focus:ring-cobre/40">
-                Recordarlo para la próxima
-            </label>
         </form>
 
         {{-- La lista --}}
@@ -503,7 +525,7 @@ new #[Title('Compras')] class extends Component
             </div>
 
             @if ($this->frequents->isEmpty())
-                <p class="text-sm text-cuero/60">Todavía no guardaste frecuentes. Marcá "recordarlo" al anotar algo y aparece acá.</p>
+                <p class="text-sm text-cuero/60">Todavía no tenés frecuentes. Lo que anotes en la lista queda guardado acá.</p>
             @else
                 <ul class="flex flex-wrap gap-2">
                     @foreach ($this->frequents as $frequent)
