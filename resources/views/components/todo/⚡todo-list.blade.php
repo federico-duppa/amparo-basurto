@@ -6,9 +6,11 @@ use App\Models\Subtask;
 use App\Models\Tag;
 use App\Models\Todo;
 use App\Support\NaturalDate;
+use App\Support\TaskImport;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
@@ -79,6 +81,22 @@ new #[Title('Tareas')] class extends Component
 
     // Mostrar en Lista las pospuestas (por defecto quedan ocultas).
     public bool $showDeferred = false;
+
+    // --- Importar una lista (alta en bulto) --------------------------------
+
+    public bool $importing = false;
+
+    public string $importText = '';
+
+    public string $importProjectId = '';
+
+    /** @var array<int, array<string, mixed>> Filas parseadas, sólo para mostrar. */
+    public array $importPreview = [];
+
+    // El texto ya se revisó y la vista previa está al día.
+    public bool $importReviewed = false;
+
+    public string $importedNotice = '';
 
     // --- Alta / edición de proyecto ---------------------------------------
 
@@ -266,6 +284,136 @@ new #[Title('Tareas')] class extends Component
         if ($this->editingId !== null && ! auth()->user()->todos()->whereKey($this->editingId)->exists()) {
             $this->cancelEdit();
         }
+    }
+
+    // --- Importar una lista (alta en bulto) --------------------------------
+
+    public function startImporting(): void
+    {
+        $this->importing = true;
+        $this->reset('importText', 'importPreview', 'importReviewed', 'importedNotice');
+        $this->importProjectId = $this->defaultProjectId();
+        $this->resetValidation('importText');
+    }
+
+    public function cancelImporting(): void
+    {
+        $this->reset('importing', 'importText', 'importProjectId', 'importPreview', 'importReviewed', 'importedNotice');
+        $this->resetValidation('importText');
+    }
+
+    public function updatedImportText(): void
+    {
+        // El texto cambió: lo revisado ya no vale, se vuelve a mirar.
+        $this->reset('importPreview', 'importReviewed', 'importedNotice');
+    }
+
+    public function previewImport(): void
+    {
+        $this->importedNotice = '';
+
+        $rows = $this->parsedImport();
+
+        if ($rows === null) {
+            return;
+        }
+
+        $this->importPreview = $rows;
+        $this->importReviewed = true;
+    }
+
+    public function confirmImport(): void
+    {
+        // Si el texto cambió después de la revisión, primero se revisa de nuevo.
+        if (! $this->importReviewed) {
+            return;
+        }
+
+        // La vista previa es sólo para mostrar: acá se vuelve a parsear el texto.
+        $rows = $this->parsedImport();
+
+        if ($rows === null) {
+            return;
+        }
+
+        $valid = array_values(array_filter($rows, fn ($row) => $row['error'] === null));
+
+        if ($valid === []) {
+            $this->importPreview = $rows;
+            $this->addError('importText', 'No entendí ninguna línea. Revisá el formato y probamos de nuevo.');
+
+            return;
+        }
+
+        $project = $this->importProjectId === ''
+            ? null
+            : auth()->user()->accessibleProjects()->findOrFail((int) $this->importProjectId);
+
+        DB::transaction(function () use ($valid, $project) {
+            foreach ($valid as $row) {
+                $todo = auth()->user()->todos()->create([
+                    'title' => $row['title'],
+                    'notes' => $row['notes'],
+                    'due_date' => $row['due'],
+                    'repeat_interval' => $row['repeat'],
+                    'urgent' => $row['urgent'],
+                    'important' => $row['important'],
+                    'project_id' => $project?->id,
+                ]);
+
+                if ($row['tags'] !== []) {
+                    $todo->tags()->sync(collect($row['tags'])
+                        ->map(fn ($name) => auth()->user()->tags()->firstOrCreate(['name' => $name])->id)
+                        ->all());
+                }
+            }
+        });
+
+        unset($this->allTags);
+
+        $failed = array_values(array_filter($rows, fn ($row) => $row['error'] !== null));
+        $count = count($valid);
+        $anote = $count === 1 ? 'Listo, anoté la tarea.' : "Listo, anoté las {$count} tareas.";
+
+        if ($failed === []) {
+            $this->reset('importText', 'importPreview', 'importReviewed');
+            $this->importedNotice = $anote;
+
+            return;
+        }
+
+        // Las líneas que no entendí quedan en el campo para acomodarlas.
+        $this->importText = implode("\n", array_column($failed, 'raw'));
+        $this->importPreview = $failed;
+        $this->importReviewed = true;
+        $this->importedNotice = $anote.' Te dejé en el campo '.(count($failed) === 1
+            ? 'la línea que no entendí, para que la acomodes.'
+            : 'las '.count($failed).' líneas que no entendí, para que las acomodes.');
+    }
+
+    /**
+     * Parsea el texto pegado con sus chequeos generales; null si quedó un
+     * error cargado.
+     */
+    private function parsedImport(): ?array
+    {
+        if (trim($this->importText) === '') {
+            $this->addError('importText', 'Pegá la lista primero.');
+
+            return null;
+        }
+
+        $rows = TaskImport::parse($this->importText);
+
+        if (count($rows) > TaskImport::MAX_LINES) {
+            $this->addError('importText', 'Son muchas de una: hasta '.TaskImport::MAX_LINES.' tareas por vez.');
+
+            return null;
+        }
+
+        $this->resetValidation('importText');
+
+        return $rows;
     }
 
     // --- Estados: algún día, en espera, posponer --------------------------
@@ -1321,6 +1469,186 @@ new #[Title('Tareas')] class extends Component
             </div>
         @endif
     </form>
+
+    {{-- Importar una lista (alta en bulto) --}}
+    @if (! $importing)
+        <button
+            type="button"
+            wire:click="startImporting"
+            class="flex min-h-11 items-center gap-1 text-sm font-medium text-monte hover:text-monte/80 focus-visible:outline-2 focus-visible:outline-monte"
+        >
+            {{-- Heroicon: clipboard-document-list (mini) --}}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
+                <path fill-rule="evenodd" d="M15.988 3.012A2.25 2.25 0 0 1 18 5.25v6.5A2.25 2.25 0 0 1 15.75 14H13.5v-3.379a3 3 0 0 0-.879-2.121l-3.12-3.121a3 3 0 0 0-1.402-.791 2.252 2.252 0 0 1 1.913-1.576A2.25 2.25 0 0 1 12.25 1h1.5a2.25 2.25 0 0 1 2.238 2.012ZM11.5 3.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v.25h-3v-.25Z" clip-rule="evenodd" />
+                <path d="M3.5 6A1.5 1.5 0 0 0 2 7.5v9A1.5 1.5 0 0 0 3.5 18h7a1.5 1.5 0 0 0 1.5-1.5v-5.879a1.5 1.5 0 0 0-.44-1.06L8.44 6.439A1.5 1.5 0 0 0 7.378 6H3.5Z" />
+            </svg>
+            Pegar una lista de tareas
+        </button>
+    @else
+        <div class="space-y-3 rounded-sm border border-cuero/20 p-3">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold">Importar una lista</h2>
+                <button
+                    type="button"
+                    wire:click="cancelImporting"
+                    class="min-h-9 rounded-sm px-2 text-sm text-cuero/70 underline hover:text-cuero hover:no-underline focus-visible:outline-2 focus-visible:outline-cuero"
+                >Cerrar</button>
+            </div>
+
+            <p class="text-sm text-cuero/70">
+                Pegá una lista con una tarea por línea; podés sumarle fecha, repetición, prioridad, notas y etiquetas separadas con «|». Si el plan te lo arma una IA, pasale primero la consigna de abajo y pegá acá su respuesta.
+            </p>
+
+            {{-- Consigna para darle a la IA --}}
+            <div x-data="{ abierta: false, copiada: false }" class="rounded-sm border border-cuero/20 bg-cuero/5 p-2">
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="abierta = !abierta"
+                        :aria-expanded="abierta"
+                        class="flex min-h-9 items-center gap-1 text-sm font-medium text-cuero hover:text-cuero/80"
+                    >
+                        {{-- Heroicon: chevron-down (mini) --}}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 transition-transform" :class="abierta && 'rotate-180'">
+                            <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                        </svg>
+                        Consigna para la IA
+                    </button>
+                    <button
+                        type="button"
+                        @click="navigator.clipboard?.writeText($refs.consigna.value).then(() => { copiada = true; setTimeout(() => copiada = false, 2500) })"
+                        class="ml-auto min-h-9 shrink-0 rounded-sm border border-cuero/30 px-2.5 text-sm text-cuero/80 hover:text-cuero focus-visible:outline-2 focus-visible:outline-cuero"
+                    >
+                        <span x-show="!copiada">Copiar</span>
+                        <span x-show="copiada" x-cloak role="status">Copiada.</span>
+                    </button>
+                </div>
+                <textarea
+                    x-ref="consigna"
+                    x-show="abierta"
+                    x-cloak
+                    readonly
+                    rows="10"
+                    aria-label="Consigna para la IA"
+                    class="mt-2 w-full rounded-sm border border-cuero/20 bg-crema px-2 py-1.5 text-xs text-cuero/80 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                >{{ App\Support\TaskImport::aiPrompt() }}</textarea>
+            </div>
+
+            <div>
+                <label for="importText" class="mb-1 block text-sm text-cuero/70">La lista</label>
+                <textarea
+                    id="importText"
+                    wire:model="importText"
+                    wire:keydown.escape="cancelImporting"
+                    rows="6"
+                    placeholder="Cortarme las uñas | repite: semanal | vence: {{ today()->format('d/m/Y') }}&#10;Sacar turno con la dentista | vence: {{ today()->addMonth()->format('d/m/Y') }} | importante"
+                    class="w-full rounded-sm border border-cuero/30 bg-crema px-3 py-2 text-base placeholder:text-cuero/50 focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                ></textarea>
+                @error('importText')
+                    <p class="text-sm text-teja" role="alert">{{ $message }}</p>
+                @enderror
+            </div>
+
+            @if ($this->projects->isNotEmpty())
+                <div>
+                    <label for="importProjectId" class="mb-1 block text-sm text-cuero/70">Proyecto</label>
+                    <select
+                        id="importProjectId"
+                        wire:model="importProjectId"
+                        class="min-h-11 w-full rounded-sm border border-cuero/30 bg-crema px-3 text-base focus:border-monte focus:outline-none focus:ring-2 focus:ring-monte/40"
+                    >
+                        <option value="">Sin proyecto</option>
+                        @foreach ($this->projects as $proyecto)
+                            <option value="{{ $proyecto->id }}">{{ $proyecto->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+
+            @if ($importedNotice !== '')
+                <p class="text-sm text-yerba" role="status">{{ $importedNotice }}</p>
+            @endif
+
+            @if ($importReviewed && $importPreview !== [])
+                @php
+                    $validas = collect($importPreview)->whereNull('error');
+                    $falladas = count($importPreview) - $validas->count();
+                @endphp
+                <div class="space-y-2" role="status">
+                    <p class="text-sm text-cuero/70">
+                        {{ $validas->count() === 1 ? '1 tarea lista para anotar' : $validas->count().' tareas listas para anotar' }}@if ($falladas > 0) · {{ $falladas === 1 ? '1 línea que no entendí' : $falladas.' líneas que no entendí' }}@endif.
+                    </p>
+                    <ul class="divide-y divide-cuero/10 rounded-sm border border-cuero/20">
+                        @foreach ($importPreview as $fila)
+                            <li wire:key="import-{{ $fila['line'] }}" class="flex items-start gap-2 px-3 py-2">
+                                @if ($fila['error'] === null)
+                                    {{-- Heroicon: check (mini) --}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="mt-0.5 size-4 shrink-0 text-yerba">
+                                        <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />
+                                    </svg>
+                                    <div class="min-w-0">
+                                        <p class="break-words text-sm">{{ $fila['title'] }}</p>
+                                        @php
+                                            $detalles = [];
+                                            if ($fila['due']) {
+                                                $detalles[] = 'vence el '.Illuminate\Support\Carbon::parse($fila['due'])->format('d/m/Y');
+                                            }
+                                            if ($fila['repeat']) {
+                                                $detalles[] = mb_strtolower(App\Models\Todo::REPEAT_INTERVALS[$fila['repeat']]);
+                                            }
+                                            if ($fila['urgent']) {
+                                                $detalles[] = 'urgente';
+                                            }
+                                            if ($fila['important']) {
+                                                $detalles[] = 'importante';
+                                            }
+                                            if ($fila['notes']) {
+                                                $detalles[] = 'con notas';
+                                            }
+                                            foreach ($fila['tags'] as $tag) {
+                                                $detalles[] = '#'.$tag;
+                                            }
+                                        @endphp
+                                        @if ($detalles !== [])
+                                            <p class="text-xs text-cuero/60">{{ implode(' · ', $detalles) }}</p>
+                                        @endif
+                                    </div>
+                                @else
+                                    {{-- Heroicon: x-mark (mini) --}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="mt-0.5 size-4 shrink-0 text-teja">
+                                        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                                    </svg>
+                                    <div class="min-w-0">
+                                        <p class="break-words text-sm text-cuero/70">{{ $fila['raw'] }}</p>
+                                        <p class="text-xs font-medium text-teja">{{ $fila['error'] }}</p>
+                                    </div>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if (! $importReviewed)
+                <button
+                    type="button"
+                    wire:click="previewImport"
+                    wire:loading.attr="disabled"
+                    class="min-h-11 w-full rounded-sm border border-monte px-4 text-sm font-medium text-monte hover:bg-monte/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60"
+                >Revisar la lista</button>
+            @else
+                @php $anotables = collect($importPreview)->whereNull('error')->count(); @endphp
+                @if ($anotables > 0)
+                    <button
+                        type="button"
+                        wire:click="confirmImport"
+                        wire:loading.attr="disabled"
+                        class="min-h-11 w-full rounded-sm bg-monte px-4 text-sm font-medium text-crema hover:bg-monte/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-monte disabled:opacity-60"
+                    >{{ $anotables === 1 ? 'Anotar la tarea' : "Anotar las {$anotables} tareas" }}</button>
+                @endif
+            @endif
+        </div>
+    @endif
 
     {{-- Aviso de pospuestas en Lista --}}
     @if ($view === 'lista' && $this->deferredCount > 0)
