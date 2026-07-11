@@ -4,17 +4,9 @@ Backlog **centralizado** de lo que queda pendiente de implementar en Amparo Basu
 
 Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wontdomd). Lo que decidimos **no** hacer vive en [WONTDO.md](WONTDO.md).
 
-## Transversal
-
-- **Biometría (passkeys/WebAuthn) en el login.** Mejora del ingreso; requiere HTTPS y un paquete dedicado.
-
 ## Auto (`/auto`)
 
 - **`spendingByPeriod()` agrupa en PHP, no en SQL.** Trae todos los mantenimientos y cargas con costo y agrupa por mes/año en memoria (decisión deliberada por portabilidad SQLite/Postgres). Con años de historia carga todo en cada render del componente de gastos; vigilar si escala y, llegado el caso, resolverlo con una query agregada compatible con ambos motores.
-
-## Salud (`/salud`)
-
-- **Reporte imprimible/exportable** de la historia para llevar al médico.
 
 ## Tareas (`/tareas`)
 
