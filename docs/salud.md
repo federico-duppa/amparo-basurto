@@ -83,6 +83,15 @@ Información libre con fecha: el corazón de la historia.
 - Cada entrada se puede **editar** en línea o **eliminar**, con confirmación (también las que anotó otra persona, igual que en Auto). Una entrada puede llevar **archivos adjuntos** (ver [Adjuntos](#adjuntos)); al eliminarla se van con ella.
 - **Filtros:** por tipo (un toque activa el filtro, otro toque lo saca) y por **búsqueda de texto** sobre título y detalle, combinables. Sin resultados, Amparo lo dice ("No encontré nada con eso.").
 
+## Reporte
+
+La historia completa en una sola página **imprimible**, para llevar al médico (o guardarla como PDF desde el navegador).
+
+- Se abre con el **ícono de impresora** junto al titular; cualquier persona con acceso a la historia puede generarlo (lo ajeno responde 404).
+- Es una **página propia, sin la navegación de la app**, pensada para papel: encabezado con el titular (tipo, nacimiento y edad), la **ficha** completa (con las alergias resaltadas), **vencimientos** por urgencia, el **carnet de vacunas** agrupado, **todas las mediciones** por tipo, **contactos** y el **timeline completo** (acá no hay "Ver más"). Las secciones vacías no se imprimen.
+- Los **adjuntos figuran como inventario** (nombre y fecha): el archivo no se imprime, pero el médico sabe qué papeles existen.
+- El botón "Imprimir o guardar como PDF" usa la impresión del navegador y no sale en el papel; el reporte lleva la marca de agua del sello y el pie "Generado el … con Amparo Basurto".
+
 ## Compartir
 
 Mismo patrón que Auto:
@@ -95,4 +104,4 @@ Mismo patrón que Auto:
 
 ## Backlog
 
-Lo pendiente de este módulo (reporte imprimible y más) vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).
+Lo pendiente de este módulo vive en [`TODO.md`](../TODO.md); lo descartado, en [`WONTDO.md`](../WONTDO.md).

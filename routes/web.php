@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\HealthAttachmentController;
+use App\Http\Controllers\HealthReportController;
 use App\Http\Controllers\VehicleDocumentAttachmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/auto/adjuntos/{attachment}', VehicleDocumentAttachmentController::class)->name('auto.adjunto')->whereNumber('attachment');
     Route::livewire('/salud', 'salud.panel')->name('salud');
     Route::get('/salud/adjuntos/{attachment}', HealthAttachmentController::class)->name('salud.adjunto')->whereNumber('attachment');
+    Route::get('/salud/reporte/{record}', HealthReportController::class)->name('salud.reporte')->whereNumber('record');
     Route::livewire('/compras', 'compras.lista')->name('compras');
     Route::livewire('/plata', 'plata.gastos')->name('plata.gastos');
     Route::livewire('/plata/sobres', 'plata.sobres')->name('plata.sobres');

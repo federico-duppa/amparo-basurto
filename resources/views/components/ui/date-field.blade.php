@@ -83,6 +83,7 @@
                 ></div>
 
                 <div
+                    x-trap.inert.noscroll="open"
                     class="relative z-10 max-h-[85dvh] w-full overflow-y-auto border border-cuero/20 bg-crema p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-2px_0_0_rgba(91,58,41,0.15)] sm:max-w-sm sm:rounded-sm sm:pb-4 sm:shadow-[0_2px_0_0_rgba(91,58,41,0.2)]"
                     x-transition:enter="transition ease-out duration-200"
                     x-transition:enter-start="translate-y-4 opacity-0 sm:translate-y-0 sm:scale-95"

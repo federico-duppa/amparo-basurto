@@ -4,6 +4,10 @@ Cosas que **decidimos no hacer**. No son deuda ni "todavía no": son límites de
 
 Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wontdomd).
 
+## Transversal
+
+- **Biometría (passkeys/WebAuthn) en el login.** Se evaluó como mejora del ingreso y se descartó (julio 2026): exige un paquete dedicado y flujos de registro/recuperación de credenciales que no se justifican para una app de uso personal con whitelist de usuarios — el login con usuario y contraseña alcanza. Si algún día cambia el uso, la decisión se revierte acá primero.
+
 ## Plata (`/plata`)
 
 Plata responde "¿a dónde se me va la plata?" y "¿qué se viene?" — **no es un módulo de patrimonio**. De ahí salen estos límites:

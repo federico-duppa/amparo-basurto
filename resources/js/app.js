@@ -1,5 +1,7 @@
 // Amparo Basurto — comportamiento de cliente mínimo sobre el Alpine que trae Livewire.
 
+import focus from '@alpinejs/focus';
+
 import { generateHardQueensRegions, nextDeduction, solveQueens } from './queens';
 
 // Nombres de los tintes de región del tablero de Queens (--color-q1..q8, mismo
@@ -7,6 +9,10 @@ import { generateHardQueensRegions, nextDeduction, solveQueens } from './queens'
 const QUEENS_REGION_LABELS = ['arena', 'greda', 'salvia', 'eucalipto', 'malva', 'mostaza', 'terracota', 'piedra'];
 
 document.addEventListener('alpine:init', () => {
+    // Plugin Focus (x-trap): atrapa el foco del teclado dentro de los diálogos
+    // (la hoja del date picker) mientras están abiertos.
+    Alpine.plugin(focus);
+
     const MESES = [
         'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
