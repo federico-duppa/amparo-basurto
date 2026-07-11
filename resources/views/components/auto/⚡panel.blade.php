@@ -3,18 +3,22 @@
 use App\Livewire\Concerns\SharesWithMembers;
 use App\Models\Concerns\FormatsMoney;
 use App\Models\Vehicle;
+use App\Models\VehicleDocumentAttachment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Auto')] class extends Component
 {
     use FormatsMoney;
     use SharesWithMembers;
+    use WithFileUploads;
 
     /** Cargas de combustible visibles por página; "Ver más" agranda la ventana. */
     private const FUEL_PAGE = 20;
@@ -111,6 +115,11 @@ new #[Title('Auto')] class extends Component
     public ?int $renewingDocumentId = null;
     public string $renewDocExpiresOn = '';
 
+    // Adjunto (PDF o imagen) recién elegido, por documento. Se guarda apenas
+    // termina de subir; van de a uno: el driver S3 de las subidas temporales
+    // de Livewire no soporta [multiple].
+    public array $docFiles = [];
+
     // Historial de vigencias anteriores desplegado.
     public ?int $docHistoryId = null;
 
@@ -171,7 +180,7 @@ new #[Title('Auto')] class extends Component
 
         $this->reset('addingVehicle', 'newTipo', 'newMarca', 'newModelo', 'newPatente', 'newKilometraje');
         $this->vehicleId = $vehicle->id;
-        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
+        $this->reset('editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'docFiles', 'spendLimit');
     }
 
     public function selectVehicle(int $id): void
@@ -179,7 +188,7 @@ new #[Title('Auto')] class extends Component
         auth()->user()->accessibleVehicles()->findOrFail($id);
 
         $this->vehicleId = $id;
-        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
+        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'docFiles', 'spendLimit');
     }
 
     public function startEditingVehicle(): void
@@ -246,7 +255,7 @@ new #[Title('Auto')] class extends Component
         $vehicle->delete();
 
         $this->vehicleId = auth()->user()->accessibleVehicles()->min('vehicles.id');
-        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'spendLimit');
+        $this->reset('addingVehicle', 'editingKm', 'editingVehicle', 'addingItem', 'loggingItemId', 'editingItemId', 'historyItemId', 'historyLimit', 'editingRecordId', 'editingFuelId', 'fuelLimit', 'addingDocument', 'editingDocumentId', 'renewingDocumentId', 'docHistoryId', 'docFiles', 'spendLimit');
     }
 
     // --- Compartir --------------------------------------------------------
@@ -698,6 +707,76 @@ new #[Title('Auto')] class extends Component
         }
     }
 
+    // --- Adjuntos de la documentación ---------------------------------------
+
+    /**
+     * El adjunto se guarda apenas termina de subir, sin formulario aparte.
+     * Cada documento tiene su propio input, atado a `docFiles.{id}`.
+     */
+    public function updatedDocFiles($file, string $key): void
+    {
+        if ($file === null) {
+            return;
+        }
+
+        $document = $this->requireVehicle()->documents()->findOrFail((int) $key);
+
+        try {
+            $this->validate(
+                ['docFiles.'.$key => $this->fileRules()],
+                $this->fileMessages('docFiles.'.$key),
+            );
+        } catch (ValidationException $exception) {
+            // Limpio el archivo rechazado para que se pueda volver a intentar.
+            unset($this->docFiles[$key]);
+
+            throw $exception;
+        }
+
+        // Nombre y tamaño se leen antes de store(): en el mismo disk,
+        // Livewire mueve el archivo temporal y después ya no está.
+        $originalName = $file->getClientOriginalName();
+        $size = $file->getSize();
+
+        $attachment = $document->attachments()->make([
+            'disk' => config('filesystems.default'),
+            'path' => $file->store('auto/'.$document->vehicle_id),
+            'original_name' => $originalName,
+            'size' => $size,
+        ]);
+        $attachment->user_id = auth()->id();
+        $attachment->save();
+
+        unset($this->docFiles[$key]);
+    }
+
+    public function deleteDocumentAttachment(int $id): void
+    {
+        // Cualquiera con acceso al auto; el modelo borra también el archivo.
+        $this->requireVehicle()->documentAttachments()->findOrFail($id)->delete();
+    }
+
+    /**
+     * PDF o imagen de hasta 10 MB. `mimes` valida el contenido real y
+     * `extensions` que el nombre tenga una extensión del mapa del modelo,
+     * que es de donde sale el Content-Type al descargar.
+     */
+    private function fileRules(): array
+    {
+        $extensions = implode(',', array_keys(VehicleDocumentAttachment::MIME_TYPES));
+
+        return ['file', 'mimes:'.$extensions, 'extensions:'.$extensions, 'max:10240'];
+    }
+
+    private function fileMessages(string $property): array
+    {
+        return [
+            $property.'.mimes' => 'Solo puedo guardar PDF o imágenes (JPG, PNG, WebP o HEIC).',
+            $property.'.extensions' => 'Solo puedo guardar PDF o imágenes (JPG, PNG, WebP o HEIC).',
+            $property.'.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
+        ];
+    }
+
     // --- Gastos por período -----------------------------------------------
 
     public function setSpendPeriod(string $period): void
@@ -890,7 +969,7 @@ new #[Title('Auto')] class extends Component
         }
 
         return $vehicle->documents()
-            ->with(['user', 'renewals.user'])
+            ->with(['user', 'renewals.user', 'attachments'])
             ->get()
             ->map(fn ($document) => [
                 'doc' => $document,
@@ -1677,6 +1756,54 @@ new #[Title('Auto')] class extends Component
                                         </ul>
                                     @endif
                                 @endif
+
+                                {{-- Adjuntos del documento: la póliza, la oblea, en PDF o foto --}}
+                                <div class="mt-3 border-t border-cuero/15 pt-3" x-data="{ falloSubida: false }">
+                                    @if ($doc->attachments->isNotEmpty())
+                                        <ul class="mb-2 space-y-1">
+                                            @foreach ($doc->attachments as $attachment)
+                                                <li wire:key="doc-attachment-{{ $attachment->id }}" class="flex items-center gap-2">
+                                                    <a href="{{ route('auto.adjunto', $attachment) }}" download="{{ $attachment->original_name }}"
+                                                        class="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-cuero hover:text-grafito focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-grafito">
+                                                        @if ($attachment->isImage())
+                                                            {{-- Heroicon: photo (solid mini) --}}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-cuero/60">
+                                                                <path fill-rule="evenodd" d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909.47.47a.75.75 0 1 1-1.06 1.06L6.53 8.091a.75.75 0 0 0-1.06 0l-2.97 2.97ZM12 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" clip-rule="evenodd" />
+                                                            </svg>
+                                                        @else
+                                                            {{-- Heroicon: paper-clip (solid mini) --}}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 text-cuero/60">
+                                                                <path fill-rule="evenodd" d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a3 3 0 0 0 4.241 4.243h.001l.497-.5a.75.75 0 0 1 1.064 1.057l-.498.501-.002.002a4.5 4.5 0 0 1-6.364-6.364l7-7a4.5 4.5 0 0 1 6.368 6.36l-3.455 3.553A2.625 2.625 0 1 1 9.52 9.52l3.45-3.451a.75.75 0 1 1 1.061 1.06l-3.45 3.451a1.125 1.125 0 0 0 1.587 1.595l3.454-3.553a3 3 0 0 0 0-4.242Z" clip-rule="evenodd" />
+                                                            </svg>
+                                                        @endif
+                                                        <span class="min-w-0 flex-1 truncate text-sm">{{ $attachment->original_name }}</span>
+                                                        <span class="shrink-0 text-xs text-cuero/50">{{ $attachment->sizeLabel() }}</span>
+                                                    </a>
+                                                    <button type="button" wire:click="deleteDocumentAttachment({{ $attachment->id }})"
+                                                        wire:confirm="Vas a eliminar {{ $attachment->original_name }}. Esto no se puede deshacer."
+                                                        aria-label="Eliminar {{ $attachment->original_name }}"
+                                                        class="grid size-11 shrink-0 place-items-center text-cuero/50 hover:text-teja focus-visible:outline-2 focus-visible:outline-teja">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4">
+                                                            <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+
+                                    <label class="inline-block">
+                                        <span class="sr-only">Adjuntar archivo a {{ $doc->name }}</span>
+                                        <input type="file" wire:model="docFiles.{{ $doc->id }}" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.pdf,.jpg,.jpeg,.png,.webp,.heic" class="peer sr-only"
+                                            x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
+                                        <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-grafito">
+                                            Adjuntar PDF o foto
+                                        </span>
+                                    </label>
+                                    <p wire:loading wire:target="docFiles.{{ $doc->id }}" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
+                                    <p x-cloak x-show="falloSubida" class="mt-1 text-sm text-teja" role="alert">No pude subir ese archivo. Puede que sea muy pesado; probá con uno más liviano.</p>
+                                    @error('docFiles.'.$doc->id) <p class="mt-1 text-sm text-teja" role="alert">{{ $message }}</p> @enderror
+                                </div>
                             @endif
                         </li>
                     @endforeach

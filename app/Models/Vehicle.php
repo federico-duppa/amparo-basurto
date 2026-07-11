@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Vehicle extends Model
 {
@@ -53,6 +54,16 @@ class Vehicle extends Model
         return [
             'kilometraje' => 'integer',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Los documentos y el resto del historial caen por cascade de la base,
+        // que no dispara eventos Eloquent: los adjuntos se borran acá vía
+        // modelo para que cada uno saque también su archivo del disco.
+        static::deleting(function (Vehicle $vehicle) {
+            $vehicle->documentAttachments()->get()->each->delete();
+        });
     }
 
     /**
@@ -187,5 +198,16 @@ class Vehicle extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(VehicleDocument::class);
+    }
+
+    /**
+     * Los adjuntos de todos los documentos del auto. Sirve para el scoping
+     * ("adjuntos accesibles" al eliminar uno) y la limpieza al borrar el auto.
+     *
+     * @return HasManyThrough<VehicleDocumentAttachment, VehicleDocument, $this>
+     */
+    public function documentAttachments(): HasManyThrough
+    {
+        return $this->hasManyThrough(VehicleDocumentAttachment::class, VehicleDocument::class);
     }
 }

@@ -33,6 +33,15 @@ class VehicleDocument extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Los adjuntos se borran vía modelo (no por cascade de la base) para
+        // que cada uno saque también su archivo del disco.
+        static::deleting(function (VehicleDocument $document) {
+            $document->attachments()->get()->each->delete();
+        });
+    }
+
     /**
      * Próximo vencimiento sugerido al renovar, según la periodicidad del
      * documento. Sin periodicidad no hay sugerencia.
@@ -112,5 +121,15 @@ class VehicleDocument extends Model
         return $this->hasMany(VehicleDocumentRenewal::class)
             ->orderByDesc('expires_on')
             ->orderByDesc('id');
+    }
+
+    /**
+     * Los archivos que cuelgan del documento (la póliza, la oblea, en PDF o foto).
+     *
+     * @return HasMany<VehicleDocumentAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(VehicleDocumentAttachment::class);
     }
 }
