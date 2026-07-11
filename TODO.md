@@ -23,8 +23,8 @@ El rumbo del módulo no es "GTD completo" sino el híbrido que probaron las buen
 ## Juegos (`/juegos`)
 
 - **Más juegos en el catálogo.** El módulo está pensado para crecer; hoy tiene Queens y Sol y luna.
-- **Guardar progreso y tiempos.** Hoy cada partida (de cualquier juego) es de una sentada y no persiste nada. Sumar mejores tiempos / racha requiere un modelo por usuario (con el scoping de siempre).
-- **Puzzle del día.** Un tablero fijo por día, igual para todos, como los juegos originales. Necesita generación determinística por fecha (semilla): los generadores de `resources/js/queens.js` y `resources/js/solyluna.js` usan `Math.random`, habría que pasarles un RNG sembrado por la fecha (y, si además hay ranking, validar del lado del servidor).
+- **Retomar una partida a medias.** Los tiempos y la racha del puzzle del día ya se guardan, pero el tablero en curso no: salir y volver arranca de cero. Persistir la partida a medias (localStorage o servidor) permitiría retomarla.
+- **Ranking del puzzle del día.** Si algún día se compara el tiempo entre usuarios, el tiempo autoinformado por el cliente no alcanza: habría que validar la partida del lado del servidor.
 - **Dificultad elegible o tamaños de grilla.** Los tableros ya salen sesgados a difíciles (medidos con el motor de deducciones); falta, si algún día se quiere, ofrecer niveles a elección ("tranquilo/difícil") o grillas más chicas/grandes. La grilla es fija 8×8.
 
 ## Técnico (mantenimiento y performance)

@@ -11,6 +11,8 @@
 // casillas que vienen dadas (0 = libre) y los vínculos visibles. El generador
 // garantiza solución única; las pistas deducen sobre lo visible.
 
+import { seededRng } from './rng.js';
+
 export const N = 6;
 export const EMPTY = 0;
 export const SOL = 1;
@@ -20,10 +22,12 @@ const HALF = N / 2;
 
 const opposite = (s) => (s === SOL ? LUNA : SOL);
 
-const shuffled = (arr) => {
+// Todo el azar del generador pasa por `rng` (mismo contrato que Math.random):
+// sembrado con la fecha produce el puzzle del día, igual en todos lados.
+const shuffled = (arr, rng) => {
     const out = arr.slice();
     for (let i = out.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(rng() * (i + 1));
         [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
@@ -55,14 +59,14 @@ function fitsBackwards(grid, r, c, s) {
 }
 
 /** Genera una grilla completa válida, al azar. */
-export function generateFullGrid() {
+export function generateFullGrid(rng = Math.random) {
     const grid = emptyGrid();
 
     const fill = (idx) => {
         if (idx === N * N) return true;
         const r = Math.floor(idx / N);
         const c = idx % N;
-        for (const s of shuffled([SOL, LUNA])) {
+        for (const s of shuffled([SOL, LUNA], rng)) {
             if (fitsBackwards(grid, r, c, s)) {
                 grid[r][c] = s;
                 if (fill(idx + 1)) return true;
@@ -140,8 +144,8 @@ export function countSolutions(givens, constraints, cap = 2) {
  * minimizan primero los dados, así el puzzle queda sesgado a resolverse por
  * vínculos, que son el sabor del juego.
  */
-export function generateSolYLunaPuzzle() {
-    const solution = generateFullGrid();
+export function generateSolYLunaPuzzle(rng = Math.random) {
+    const solution = generateFullGrid(rng);
 
     // Candidatos: cada casilla como dado, cada par vecino como vínculo.
     const givenPool = [];
@@ -157,7 +161,7 @@ export function generateSolYLunaPuzzle() {
     }
 
     // Arrancamos con un juego de pistas de sobra y lo achicamos.
-    let clues = shuffled([...shuffled(givenPool).slice(0, 14), ...shuffled(constraintPool).slice(0, 14)]);
+    let clues = shuffled([...shuffled(givenPool, rng).slice(0, 14), ...shuffled(constraintPool, rng).slice(0, 14)], rng);
 
     const materialize = (set) => {
         const givens = emptyGrid();
@@ -170,7 +174,7 @@ export function generateSolYLunaPuzzle() {
     };
 
     // Si con eso no alcanza (raro), sumamos candidatos hasta que sea único.
-    let extras = shuffled([...givenPool, ...constraintPool]).filter((c) => !clues.includes(c));
+    let extras = shuffled([...givenPool, ...constraintPool], rng).filter((c) => !clues.includes(c));
     while (true) {
         const { givens, constraints } = materialize(clues);
         if (countSolutions(givens, constraints) === 1) break;
@@ -416,13 +420,13 @@ export function rateSolYLunaDifficulty(puzzle) {
  * el objetivo o si se agota el presupuesto: el botón tiene que sentirse
  * inmediato. Mismo esquema que el generador de Queens.
  */
-export function generateHardSolYLuna({ minScore = 16, candidates = 16, budgetMs = 300 } = {}) {
+export function generateHardSolYLuna({ minScore = 16, candidates = 16, budgetMs = 300, rng = Math.random } = {}) {
     const start = Date.now();
     let best = null;
     let bestScore = -1;
 
     for (let i = 0; i < candidates; i++) {
-        const puzzle = generateSolYLunaPuzzle();
+        const puzzle = generateSolYLunaPuzzle(rng);
         const score = rateSolYLunaDifficulty(puzzle) ?? 0;
         if (score > bestScore) {
             best = puzzle;
@@ -432,4 +436,17 @@ export function generateHardSolYLuna({ minScore = 16, candidates = 16, budgetMs 
     }
 
     return best;
+}
+
+/**
+ * El puzzle del día: uno fijo por fecha, igual para todos. El RNG se siembra
+ * con la fecha y se saca el presupuesto de tiempo (cortar por reloj haría que
+ * cada dispositivo viera un puzzle distinto); el corte por puntaje sí es
+ * determinístico. Menos candidatos que el generador libre porque acá no hay
+ * presupuesto que frene el peor caso.
+ */
+export function generateDailySolYLuna(dateISO) {
+    const rng = seededRng('solyluna-' + dateISO);
+
+    return generateHardSolYLuna({ candidates: 10, budgetMs: Infinity, rng });
 }

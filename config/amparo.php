@@ -18,4 +18,18 @@ return [
         explode(',', (string) env('ALLOWED_USERNAMES', ''))
     ))),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Zona horaria de la casa
+    |--------------------------------------------------------------------------
+    |
+    | La app guarda timestamps en la zona por defecto de Laravel (UTC), pero
+    | lo que depende de "qué día es hoy" para las personas — el puzzle del día
+    | de Juegos y su racha — usa esta zona, para que el día no cambie a las
+    | 21:00 de Argentina.
+    |
+    */
+
+    'zona_horaria' => env('AMPARO_ZONA_HORARIA', 'America/Argentina/Buenos_Aires'),
+
 ];

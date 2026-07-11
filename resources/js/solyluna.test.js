@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { seededRng } from './rng';
 import {
     countSolutions,
     EMPTY,
+    generateDailySolYLuna,
     generateFullGrid,
     generateHardSolYLuna,
     generateSolYLunaPuzzle,
@@ -147,5 +149,34 @@ describe('dificultad', () => {
         const puzzle = generateHardSolYLuna({ candidates: 6, budgetMs: 1500 });
         expect(gridIsValid(puzzle.solution)).toBe(true);
         expect(countSolutions(puzzle.givens, puzzle.constraints, 2)).toBe(1);
+    });
+});
+
+describe('generateDailySolYLuna (puzzle del día)', () => {
+    it('con el mismo RNG sembrado, el generador base es determinístico', () => {
+        const a = generateSolYLunaPuzzle(seededRng('prueba'));
+        const b = generateSolYLunaPuzzle(seededRng('prueba'));
+
+        expect(a).toEqual(b);
+    });
+
+    it('la misma fecha da siempre el mismo puzzle', { timeout: 60_000 }, () => {
+        const a = generateDailySolYLuna('2026-07-11');
+        const b = generateDailySolYLuna('2026-07-11');
+
+        expect(a).toEqual(b);
+    });
+
+    it('fechas distintas dan puzzles distintos', { timeout: 60_000 }, () => {
+        expect(generateDailySolYLuna('2026-07-11')).not.toEqual(generateDailySolYLuna('2026-07-12'));
+    });
+
+    it('el puzzle del día es válido y de solución única', { timeout: 60_000 }, () => {
+        for (const fecha of ['2026-01-01', '2026-07-11', '2026-12-31']) {
+            const puzzle = generateDailySolYLuna(fecha);
+
+            expect(gridIsValid(puzzle.solution)).toBe(true);
+            expect(countSolutions(puzzle.givens, puzzle.constraints, 2)).toBe(1);
+        }
     });
 });
