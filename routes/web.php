@@ -29,6 +29,7 @@ Route::middleware('auth')->group(function () {
 
     Route::livewire('/juegos', 'juegos.panel')->name('juegos');
     Route::livewire('/juegos/queens', 'juegos.queens')->name('juegos.queens');
+    Route::livewire('/juegos/solyluna', 'juegos.solyluna')->name('juegos.solyluna');
 
     // Destino del share de Android (Web Share Target del manifest).
     Route::livewire('/compartir', 'compartir.recibir')->name('compartir');

@@ -17,6 +17,11 @@ new #[Title('Juegos')] class extends Component
                 'resumen' => 'Una reina por fila, por columna y por color, sin que se toquen. Grilla de 8 por 8.',
                 'ruta' => 'juegos.queens',
             ],
+            [
+                'nombre' => 'Sol y luna',
+                'resumen' => 'Soles y lunas mitad y mitad, sin tres seguidos, respetando los = y los ×. Grilla de 6 por 6.',
+                'ruta' => 'juegos.solyluna',
+            ],
         ];
     }
 }; ?>
