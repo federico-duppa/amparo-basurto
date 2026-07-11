@@ -1,6 +1,6 @@
 # Salud (`/salud`)
 
-Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro) o la de una mascota. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**), **adjuntos** (PDF de certificados, estudios, recetas) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
+Historias clínicas: la propia, la de un familiar, las de pacientes (si quien usa la app trabaja en el rubro) o la de una mascota. Cada historia junta una **ficha** con lo esencial del titular, secciones estructuradas (**vencimientos**, **carnet de vacunas**, **mediciones**, **contactos médicos**), **adjuntos** (certificados, estudios y recetas en PDF o foto) y un **timeline de entradas** libres (consultas, estudios, medicación, vacunas, notas). Es un módulo **compartido**: una historia tiene un dueño y puede compartirse con otras personas, con el mismo patrón que Auto.
 
 Como en la ficha, **todas las secciones estructuradas son del día a día**: cualquier persona con acceso a la historia (dueño o compartida) las opera completas. Eliminar la historia borra también todo lo anotado en ellas.
 
@@ -67,11 +67,11 @@ Médico de cabecera, especialistas y sus teléfonos, por historia.
 
 ## Adjuntos
 
-Certificados, estudios, recetas, órdenes: los papeles de la historia, en PDF, siempre a mano en el teléfono. Un adjunto puede estar **suelto en la historia** (sección Adjuntos) o **colgar de una entrada del timeline** (se adjunta al anotar o al editar la entrada, y se ve como chip en la entrada).
+Certificados, estudios, recetas, órdenes: los papeles de la historia, en PDF o como foto, siempre a mano en el teléfono. Un adjunto puede estar **suelto en la historia** (sección Adjuntos) o **colgar de una entrada del timeline** (se adjunta al anotar o al editar la entrada, y se ve como chip en la entrada).
 
-- Solo se aceptan **PDF de hasta 10 MB**, elegidos **de a uno**; una entrada puede juntar **hasta 10** antes de guardarse. Si un archivo no pasa, Amparo lo dice y no lo suma.
-- En la sección Adjuntos el PDF suelto **se guarda apenas termina de subir** (sin formulario); la lista muestra nombre original, fecha, tamaño y quién lo subió, del más nuevo al más viejo.
-- Un adjunto se **descarga** por una URL autenticada que verifica el acceso a la historia y entrega el archivo directo, con su nombre original; se abre con el visor del teléfono. No hay URLs públicas ni navegación fuera de la app (pensado para la PWA instalada). Lo ajeno responde 404.
+- Se aceptan **PDF e imágenes (JPG, PNG, WebP, HEIC) de hasta 10 MB**, elegidos **de a uno**; una entrada puede juntar **hasta 10** antes de guardarse. Si un archivo no pasa (por tipo, por extensión o por peso), Amparo lo dice y no lo suma.
+- En la sección Adjuntos el archivo suelto **se guarda apenas termina de subir** (sin formulario); la lista muestra nombre original, fecha, tamaño y quién lo subió, del más nuevo al más viejo, con un ícono que distingue foto de documento.
+- Un adjunto se **descarga** por una URL autenticada que verifica el acceso a la historia y entrega el archivo directo, con su nombre original y su tipo real (PDF o imagen); se abre con el visor del teléfono. No hay URLs públicas ni navegación fuera de la app (pensado para la PWA instalada). Lo ajeno responde 404.
 - Cualquier persona con acceso a la historia puede **subir y eliminar** adjuntos (con confirmación), igual que las entradas. Eliminar un adjunto, su entrada o la historia borra también el archivo del almacenamiento.
 
 ## Entradas (el timeline)
@@ -80,7 +80,7 @@ Información libre con fecha: el corazón de la historia.
 
 - Cada entrada tiene **fecha** (precargada con hoy), **tipo**, **título** y **detalle opcional** (texto libre). Los tipos son cinco y livianos a propósito: **consulta, estudio, medicación, vacuna y nota** — sirven para filtrar y dar contexto, no para burocratizar la carga.
 - La lista va de la más reciente a la más vieja y se muestra **de a 20**: "Ver más entradas" agranda la ventana (que vuelve al principio al cambiar de historia o de filtro). Cada entrada guarda **quién la anotó**.
-- Cada entrada se puede **editar** en línea o **eliminar**, con confirmación (también las que anotó otra persona, igual que en Auto). Una entrada puede llevar **PDF adjuntos** (ver [Adjuntos](#adjuntos)); al eliminarla se van con ella.
+- Cada entrada se puede **editar** en línea o **eliminar**, con confirmación (también las que anotó otra persona, igual que en Auto). Una entrada puede llevar **archivos adjuntos** (ver [Adjuntos](#adjuntos)); al eliminarla se van con ella.
 - **Filtros:** por tipo (un toque activa el filtro, otro toque lo saca) y por **búsqueda de texto** sobre título y detalle, combinables. Sin resultados, Amparo lo dice ("No encontré nada con eso.").
 
 ## Compartir

@@ -72,7 +72,7 @@ class HealthEntry extends Model
     }
 
     /**
-     * Los PDF que cuelgan de esta entrada (el estudio, la receta, la orden).
+     * Los archivos que cuelgan de esta entrada (el estudio, la receta, la foto de la orden).
      *
      * @return HasMany<HealthAttachment, $this>
      */

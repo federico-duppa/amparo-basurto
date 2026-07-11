@@ -60,13 +60,40 @@ class SaludAdjuntosTest extends TestCase
         Storage::disk('local')->assertExists($attachment->path);
     }
 
-    public function test_rechaza_archivos_que_no_son_pdf(): void
+    public function test_puede_subir_una_imagen_suelta_a_la_historia(): void
+    {
+        $record = HealthRecord::factory()->for($this->user)->create();
+
+        Livewire::test('salud.panel')
+            ->set('recordFile', UploadedFile::fake()->create('receta.jpg', 120, 'image/jpeg'))
+            ->assertHasNoErrors();
+
+        $attachment = HealthAttachment::sole();
+        $this->assertSame($record->id, $attachment->health_record_id);
+        $this->assertSame('receta.jpg', $attachment->original_name);
+        Storage::disk('local')->assertExists($attachment->path);
+    }
+
+    public function test_rechaza_archivos_que_no_son_pdf_ni_imagen(): void
     {
         HealthRecord::factory()->for($this->user)->create();
 
         Livewire::test('salud.panel')
-            ->set('recordFile', UploadedFile::fake()->create('foto.jpg', 120, 'image/jpeg'))
+            ->set('recordFile', UploadedFile::fake()->create('apunte.txt', 120, 'text/plain'))
             ->assertHasErrors(['recordFile' => 'mimes']);
+
+        $this->assertDatabaseEmpty('health_attachments');
+    }
+
+    public function test_rechaza_un_archivo_con_extension_desconocida(): void
+    {
+        HealthRecord::factory()->for($this->user)->create();
+
+        // Contenido permitido pero extensión fuera del mapa: sin una extensión
+        // confiable la descarga no sabría con qué Content-Type servirlo.
+        Livewire::test('salud.panel')
+            ->set('recordFile', UploadedFile::fake()->create('estudio.bin', 120, 'application/pdf'))
+            ->assertHasErrors(['recordFile' => 'extensions']);
 
         $this->assertDatabaseEmpty('health_attachments');
     }
@@ -82,14 +109,14 @@ class SaludAdjuntosTest extends TestCase
         $this->assertDatabaseEmpty('health_attachments');
     }
 
-    public function test_puede_adjuntar_pdfs_al_anotar_una_entrada(): void
+    public function test_puede_adjuntar_archivos_al_anotar_una_entrada(): void
     {
         HealthRecord::factory()->for($this->user)->create();
 
         Livewire::test('salud.panel')
             ->set('entryTitle', 'Análisis de sangre')
             ->set('entryFile', UploadedFile::fake()->create('resultado.pdf', 80, 'application/pdf'))
-            ->set('entryFile', UploadedFile::fake()->create('orden.pdf', 40, 'application/pdf'))
+            ->set('entryFile', UploadedFile::fake()->create('orden.jpg', 40, 'image/jpeg'))
             ->call('addEntry')
             ->assertHasNoErrors();
 
@@ -98,6 +125,10 @@ class SaludAdjuntosTest extends TestCase
         $this->assertDatabaseHas('health_attachments', [
             'health_entry_id' => $entry->id,
             'original_name' => 'resultado.pdf',
+        ]);
+        $this->assertDatabaseHas('health_attachments', [
+            'health_entry_id' => $entry->id,
+            'original_name' => 'orden.jpg',
         ]);
     }
 
@@ -158,7 +189,26 @@ class SaludAdjuntosTest extends TestCase
         // en la PWA instalada una navegación externa saca al usuario de la app.
         $this->get(route('salud.adjunto', $attachment))
             ->assertOk()
-            ->assertDownload($attachment->original_name);
+            ->assertDownload($attachment->original_name)
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_una_imagen_se_descarga_con_su_content_type(): void
+    {
+        $record = HealthRecord::factory()->for($this->user)->create();
+
+        $path = 'salud/'.$record->id.'/'.fake()->uuid().'.jpg';
+        Storage::disk('local')->put($path, 'fake-jpeg');
+
+        $attachment = HealthAttachment::factory()
+            ->for($record, 'record')
+            ->for($this->user)
+            ->create(['path' => $path, 'original_name' => 'receta.jpg']);
+
+        $this->get(route('salud.adjunto', $attachment))
+            ->assertOk()
+            ->assertDownload('receta.jpg')
+            ->assertHeader('Content-Type', 'image/jpeg');
     }
 
     public function test_quien_tiene_la_historia_compartida_puede_descargar(): void
