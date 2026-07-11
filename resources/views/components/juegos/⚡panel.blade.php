@@ -1,27 +1,48 @@
 <?php
 
+use App\Models\GameResult;
+use Carbon\CarbonImmutable;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Juegos')] class extends Component
 {
     /**
-     * Catálogo de juegos. Cada uno se agrega acá con su ruta; los que todavía no
-     * están se muestran como "en camino" para dar a entender que la sección crece.
+     * Catálogo de juegos. Cada uno se agrega acá con su ruta y su clave en
+     * game_results; los que todavía no están se muestran como "en camino"
+     * para dar a entender que la sección crece.
      */
     public function games(): array
     {
         return [
             [
+                'clave' => 'queens',
                 'nombre' => 'Queens',
                 'resumen' => 'Una reina por fila, por columna y por color, sin que se toquen. Grilla de 8 por 8.',
                 'ruta' => 'juegos.queens',
             ],
             [
+                'clave' => 'solyluna',
                 'nombre' => 'Sol y luna',
                 'resumen' => 'Soles y lunas mitad y mitad, sin tres seguidos, respetando los = y los ×. Grilla de 6 por 6.',
                 'ruta' => 'juegos.solyluna',
             ],
+        ];
+    }
+
+    /**
+     * Los números del usuario en un juego: racha del puzzle del día, si el de
+     * hoy ya está resuelto y su mejor tiempo. Todo sale de sus game_results.
+     */
+    public function stats(string $game): array
+    {
+        $user = auth()->user();
+        $hoy = CarbonImmutable::now(config('amparo.zona_horaria'))->toDateString();
+
+        return [
+            'diario' => GameResult::dailyResult($user, $game, $hoy) !== null,
+            'racha' => GameResult::streak($user, $game, $hoy),
+            'mejor' => GameResult::bestTime($user, $game),
         ];
     }
 }; ?>
@@ -49,6 +70,26 @@ new #[Title('Juegos')] class extends Component
                     <span class="min-w-0">
                         <span class="block font-brand text-lg font-bold text-cuero">{{ $game['nombre'] }}</span>
                         <span class="mt-0.5 block text-sm text-cuero/70">{{ $game['resumen'] }}</span>
+                        @php($stats = $this->stats($game['clave']))
+                        @if ($stats['diario'] || $stats['racha'] > 0 || $stats['mejor'] !== null)
+                            <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-cuero/60">
+                                @if ($stats['diario'])
+                                    <span class="inline-flex items-center gap-1 font-medium text-yerba">
+                                        {{-- Heroicon: check-circle (mini) --}}
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-3.5">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                        </svg>
+                                        El del día, listo
+                                    </span>
+                                @endif
+                                @if ($stats['racha'] > 0)
+                                    <span>Racha: {{ $stats['racha'] }} {{ $stats['racha'] === 1 ? 'día' : 'días' }}</span>
+                                @endif
+                                @if ($stats['mejor'] !== null)
+                                    <span class="tabular-nums">Mejor: {{ sprintf('%02d:%02d', intdiv($stats['mejor'], 60), $stats['mejor'] % 60) }}</span>
+                                @endif
+                            </span>
+                        @endif
                     </span>
                     <span class="ml-auto shrink-0 text-pizarra/60" aria-hidden="true">
                         {{-- Heroicon: chevron-right (mini) --}}

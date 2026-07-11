@@ -2,8 +2,8 @@
 
 import focus from '@alpinejs/focus';
 
-import { generateHardQueensRegions, nextDeduction, solveQueens } from './queens';
-import { EMPTY, generateHardSolYLuna, LUNA, N as SYL_N, nextDeduction as nextSolYLunaDeduction, SOL } from './solyluna';
+import { generateDailyQueensRegions, generateHardQueensRegions, nextDeduction, solveQueens } from './queens';
+import { EMPTY, generateDailySolYLuna, generateHardSolYLuna, LUNA, N as SYL_N, nextDeduction as nextSolYLunaDeduction, SOL } from './solyluna';
 
 // Nombres de los tintes de región del tablero de Queens (--color-q1..q8, mismo
 // orden que los tokens del tema) para que la pista pueda decir "el color arena".
@@ -233,10 +233,10 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // Tablero de Sol y luna: igual que Queens, TODO vive en el cliente — la
-    // partida se genera y se juega en el navegador, sin llamadas al backend
-    // (generateSolYLunaPuzzle en resources/js/solyluna.js).
-    Alpine.data('solyluna', () => ({
+    // Tablero de Sol y luna: igual que Queens, la partida se genera y se juega
+    // en el navegador (generateSolYLunaPuzzle en resources/js/solyluna.js). El
+    // servidor solo entra al ganar, para anotar el tiempo y la racha.
+    Alpine.data('solyluna', (opts = {}) => ({
         N: SYL_N,
         puzzle: null,
         board: [],
@@ -247,6 +247,14 @@ document.addEventListener('alpine:init', () => {
         timer: null,
         muted: false,
         audioCtx: null,
+        // Puzzle del día y números del usuario: los sirve el componente
+        // Livewire al cargar y recordWin los refresca al ganar.
+        mode: 'daily', // 'daily' (el mismo para todos, sostiene la racha) | 'free'
+        dailyDate: opts.date ?? null,
+        dailySolved: !!opts.dailySolved,
+        dailySeconds: opts.dailySeconds ?? null,
+        streak: opts.streak ?? 0,
+        best: opts.best ?? null,
         // Pila de deshacer: una foto del tablero por acción.
         history: [],
         // Pista: casillas resaltadas + cartelito. 'cell' señala dónde va un
@@ -259,15 +267,37 @@ document.addEventListener('alpine:init', () => {
 
         init() {
             this.muted = localStorage.getItem('solyluna-muted') === '1';
-            this.newGame();
+            // Se abre en el puzzle del día, salvo que ya esté resuelto.
+            if (this.dailyDate && !this.dailySolved) {
+                this.startDaily(true);
+            } else {
+                this.startFree(true);
+            }
         },
 
         destroy() {
             this.stopTimer();
         },
 
+        // El puzzle del día: fijo por fecha, igual para todos.
+        startDaily(force = false) {
+            if (!force && this.mode === 'daily') return;
+            this.mode = 'daily';
+            this.setPuzzle(generateDailySolYLuna(this.dailyDate));
+        },
+
+        startFree(force = false) {
+            if (!force && this.mode === 'free') return;
+            this.newGame();
+        },
+
         newGame() {
-            this.puzzle = generateHardSolYLuna();
+            this.mode = 'free';
+            this.setPuzzle(generateHardSolYLuna());
+        },
+
+        setPuzzle(puzzle) {
+            this.puzzle = puzzle;
             this.links = {};
             for (const k of this.puzzle.constraints) {
                 this.links[k.r + ',' + k.c + ',' + k.dir] = k.kind === 'eq' ? '=' : '×';
@@ -363,13 +393,64 @@ document.addEventListener('alpine:init', () => {
             this.badCells = bad;
             const full = this.board.every((row) => !row.includes(EMPTY));
             const nowWon = full && bad.size === 0;
-            if (nowWon && !this.won) this.sfxVictory();
+            if (nowWon && !this.won) {
+                this.sfxVictory();
+                this.reportWin();
+            }
             this.won = nowWon;
             if (this.won) this.stopTimer();
         },
 
         isBad(r, c) {
             return this.badCells.has(r + ',' + c);
+        },
+
+        // --- Tiempos y racha -------------------------------------------------
+        // Anota la victoria en el servidor (recordWin del componente Livewire)
+        // y refresca los números. Si falla — sin conexión, sesión vencida — la
+        // partida no se pierde: solo queda sin anotar.
+
+        reportWin() {
+            let wire;
+            try {
+                wire = this.$wire;
+            } catch (e) {
+                return;
+            }
+            if (!wire) return;
+            wire.recordWin(this.mode === 'daily' ? 'daily' : 'free', Math.max(1, this.elapsed), this.dailyDate ?? '')
+                .then((state) => state && this.applyStats(state))
+                .catch(() => {});
+        },
+
+        applyStats(state) {
+            this.dailySolved = state.dailySolved;
+            this.dailySeconds = state.dailySeconds;
+            this.streak = state.streak;
+            this.best = state.best;
+        },
+
+        fmt(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        },
+
+        get statsLabel() {
+            const parts = [];
+            if (this.streak > 0) parts.push('Racha: ' + this.streak + (this.streak === 1 ? ' día' : ' días'));
+            if (this.best !== null && this.best !== undefined) parts.push('Mejor: ' + this.fmt(this.best));
+            return parts.join(' · ');
+        },
+
+        get streakLabel() {
+            return this.streak + (this.streak === 1 ? ' día seguido' : ' días seguidos');
+        },
+
+        get dailyNotice() {
+            if (this.mode !== 'daily' || !this.dailySolved || this.won) return '';
+            if (this.dailySeconds) return 'El de hoy ya lo resolviste en ' + this.fmt(this.dailySeconds) + '. Jugalo de nuevo si querés; queda anotado el primer tiempo.';
+            return 'El de hoy ya lo resolviste.';
         },
 
         // --- Pista ---------------------------------------------------------
@@ -435,9 +516,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get timeLabel() {
-            const m = Math.floor(this.elapsed / 60);
-            const s = this.elapsed % 60;
-            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+            return this.fmt(this.elapsed);
         },
 
         // --- Presentación ----------------------------------------------------
@@ -535,12 +614,21 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // Tablero de Queens: TODO vive en el cliente, incluido armar la partida.
-    // No hay ninguna llamada al backend para jugar ni para pedir un tablero
-    // nuevo; la generación (sesgada a tableros difíciles) está en
-    // generateHardQueensRegions() (resources/js/queens.js).
-    Alpine.data('queens', () => ({
+    // Tablero de Queens: la partida vive en el cliente, incluido armarla — no
+    // hay llamadas al backend para jugar ni para pedir un tablero nuevo; la
+    // generación (sesgada a difícil) está en generateHardQueensRegions()
+    // (resources/js/queens.js). El servidor solo entra al ganar, para anotar
+    // el tiempo y la racha.
+    Alpine.data('queens', (opts = {}) => ({
         size: 8,
+        // Puzzle del día y números del usuario: los sirve el componente
+        // Livewire al cargar y recordWin los refresca al ganar.
+        mode: 'daily', // 'daily' (el mismo para todos, sostiene la racha) | 'free'
+        dailyDate: opts.date ?? null,
+        dailySolved: !!opts.dailySolved,
+        dailySeconds: opts.dailySeconds ?? null,
+        streak: opts.streak ?? 0,
+        best: opts.best ?? null,
         regions: [],
         // marks = lo que el jugador puso a mano: 0 vacía · 1 cruz · 2 reina.
         marks: [],
@@ -578,17 +666,39 @@ document.addEventListener('alpine:init', () => {
 
         init() {
             this.muted = localStorage.getItem('queens-muted') === '1';
-            this.newGame();
+            // Se abre en el tablero del día, salvo que ya esté resuelto.
+            if (this.dailyDate && !this.dailySolved) {
+                this.startDaily(true);
+            } else {
+                this.startFree(true);
+            }
         },
 
         destroy() {
             this.stopTimer();
         },
 
+        // El tablero del día: fijo por fecha, igual para todos.
+        startDaily(force = false) {
+            if (!force && this.mode === 'daily') return;
+            this.mode = 'daily';
+            this.setRegions(generateDailyQueensRegions(this.dailyDate));
+        },
+
+        startFree(force = false) {
+            if (!force && this.mode === 'free') return;
+            this.newGame();
+        },
+
         // Arma un tablero nuevo (en el navegador) y arranca de cero. Sesgado a
         // difícil: se generan candidatos y queda el que exige más deducción.
         newGame() {
-            this.regions = generateHardQueensRegions();
+            this.mode = 'free';
+            this.setRegions(generateHardQueensRegions());
+        },
+
+        setRegions(regions) {
+            this.regions = regions;
             this.solution = null; // otro puzzle: se recalcula cuando pidan pista
             this.clearBoard();
             this.resetTimer();
@@ -876,13 +986,64 @@ document.addEventListener('alpine:init', () => {
 
             this.badCells = bad;
             const nowWon = bad.size === 0 && queens.length === this.size;
-            if (nowWon && !this.won) this.sfxVictory();
+            if (nowWon && !this.won) {
+                this.sfxVictory();
+                this.reportWin();
+            }
             this.won = nowWon;
             if (this.won) this.stopTimer();
         },
 
         isBad(r, c) {
             return this.badCells.has(r + ',' + c);
+        },
+
+        // --- Tiempos y racha ---------------------------------------------------
+        // Anota la victoria en el servidor (recordWin del componente Livewire)
+        // y refresca los números. Si falla — sin conexión, sesión vencida — la
+        // partida no se pierde: solo queda sin anotar.
+
+        reportWin() {
+            let wire;
+            try {
+                wire = this.$wire;
+            } catch (e) {
+                return;
+            }
+            if (!wire) return;
+            wire.recordWin(this.mode === 'daily' ? 'daily' : 'free', Math.max(1, this.elapsed), this.dailyDate ?? '')
+                .then((state) => state && this.applyStats(state))
+                .catch(() => {});
+        },
+
+        applyStats(state) {
+            this.dailySolved = state.dailySolved;
+            this.dailySeconds = state.dailySeconds;
+            this.streak = state.streak;
+            this.best = state.best;
+        },
+
+        fmt(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        },
+
+        get statsLabel() {
+            const parts = [];
+            if (this.streak > 0) parts.push('Racha: ' + this.streak + (this.streak === 1 ? ' día' : ' días'));
+            if (this.best !== null && this.best !== undefined) parts.push('Mejor: ' + this.fmt(this.best));
+            return parts.join(' · ');
+        },
+
+        get streakLabel() {
+            return this.streak + (this.streak === 1 ? ' día seguido' : ' días seguidos');
+        },
+
+        get dailyNotice() {
+            if (this.mode !== 'daily' || !this.dailySolved || this.won) return '';
+            if (this.dailySeconds) return 'El de hoy ya lo resolviste en ' + this.fmt(this.dailySeconds) + '. Jugalo de nuevo si querés; queda anotado el primer tiempo.';
+            return 'El de hoy ya lo resolviste.';
         },
 
         // Fondo por región vía las variables --color-q1..q8 del tema.
@@ -1049,9 +1210,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get timeLabel() {
-            const m = Math.floor(this.elapsed / 60);
-            const s = this.elapsed % 60;
-            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+            return this.fmt(this.elapsed);
         },
 
         // Celdas en orden (fila, columna) para un solo x-for sobre el tablero.

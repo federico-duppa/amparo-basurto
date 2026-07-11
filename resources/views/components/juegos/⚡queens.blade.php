@@ -1,12 +1,22 @@
 <?php
 
+use App\Livewire\Concerns\RecordsGameResults;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// La partida se arma y se juega entera en el navegador (ver generateQueensRegions
-// en resources/js/app.js): este componente solo pinta el marco de la página. No
-// hay estado en el servidor ni llamadas al backend para jugar.
-new #[Title('Queens')] class extends Component {}; ?>
+// La partida se arma y se juega entera en el navegador (ver queens.js y el
+// Alpine.data('queens') en resources/js/app.js): este componente entrega el
+// marco de la página con los números del usuario (racha, mejor tiempo, si el
+// del día ya está) y anota las victorias vía recordWin (RecordsGameResults).
+new #[Title('Queens')] class extends Component
+{
+    use RecordsGameResults;
+
+    protected function gameKey(): string
+    {
+        return 'queens';
+    }
+}; ?>
 
 <div class="space-y-5">
     <div class="flex items-center gap-2">
@@ -25,9 +35,35 @@ new #[Title('Queens')] class extends Component {}; ?>
     </div>
 
     <div
-        x-data="queens()"
+        x-data="queens(@js($this->gameState()))"
         class="space-y-4"
     >
+        {{-- El del día (mismo tablero para todos, sostiene la racha) o libre. --}}
+        <div role="group" aria-label="Elegí el tablero" class="flex gap-2">
+            <button
+                type="button"
+                @click="startDaily()"
+                :aria-pressed="mode === 'daily'"
+                :class="mode === 'daily' ? 'border-pizarra bg-pizarra text-crema' : 'border-cuero/25 text-cuero hover:bg-cuero/5'"
+                class="flex-1 rounded-sm border px-3 py-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
+            >
+                El del día
+            </button>
+            <button
+                type="button"
+                @click="startFree()"
+                :aria-pressed="mode === 'free'"
+                :class="mode === 'free' ? 'border-pizarra bg-pizarra text-crema' : 'border-cuero/25 text-cuero hover:bg-cuero/5'"
+                class="flex-1 rounded-sm border px-3 py-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
+            >
+                Libre
+            </button>
+        </div>
+
+        {{-- Racha y mejor tiempo; y el aviso de que el de hoy ya está. --}}
+        <p x-show="statsLabel" x-cloak x-text="statsLabel" class="text-sm text-cuero/70"></p>
+        <p x-show="dailyNotice" x-cloak x-text="dailyNotice" class="text-sm text-ocre-oscuro"></p>
+
         {{-- Estado: reinas puestas, cronómetro y silenciador. --}}
         <div class="flex items-center justify-between text-sm text-cuero/70">
             <span aria-live="polite"><span x-text="queenCount()">0</span> de 8 reinas</span>
@@ -155,6 +191,7 @@ new #[Title('Queens')] class extends Component {}; ?>
         >
             <p class="font-brand text-lg font-bold text-yerba">Lo resolviste.</p>
             <p class="mt-0.5 text-sm text-cuero/80">Tardaste <span x-text="timeLabel" class="tabular-nums">00:00</span>. Muy bien.</p>
+            <p x-show="mode === 'daily' && streak > 0" x-cloak class="mt-0.5 text-sm text-cuero/80">Racha: <span x-text="streakLabel"></span>.</p>
         </div>
 
         {{-- Controles. Arriba las ayudas (pista, deshacer); abajo empezar de nuevo. --}}
@@ -193,6 +230,7 @@ new #[Title('Queens')] class extends Component {}; ?>
                     Vaciar
                 </button>
                 <button
+                    x-show="mode === 'free'"
                     type="button"
                     @click="newGame()"
                     class="flex-1 rounded-sm bg-pizarra px-3 py-2.5 text-sm font-medium text-crema hover:bg-pizarra/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pizarra"
@@ -212,6 +250,7 @@ new #[Title('Queens')] class extends Component {}; ?>
                 </svg>
             </summary>
             <div class="space-y-2 border-t border-cuero/15 px-4 py-3 text-sm text-cuero/80">
+                <p><strong>El del día</strong> es el mismo tablero para todos y cambia con la fecha: resolverlo sostiene tu racha. En <strong>Libre</strong> jugás todos los tableros que quieras; el mejor tiempo cuenta en los dos.</p>
                 <p>Poné una reina en cada fila, cada columna y cada color: ocho en total.</p>
                 <p>Dos reinas no pueden tocarse, ni siquiera en diagonal.</p>
                 <p>Un toque marca la casilla con una cruz (para descartarla), otro pone la reina y otro la deja limpia. Si una reina rompe una regla, la vas a ver en rojo.</p>

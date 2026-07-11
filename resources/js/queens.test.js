@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateHardQueensRegions, generateQueensRegions, nextDeduction, rateQueensDifficulty, solveQueens } from './queens';
+import { generateDailyQueensRegions, generateHardQueensRegions, generateQueensRegions, nextDeduction, rateQueensDifficulty, solveQueens } from './queens';
+import { seededRng } from './rng';
 
 const N = 8;
 
@@ -196,6 +197,36 @@ describe('rateQueensDifficulty', () => {
             expect(a.score).toBeGreaterThanOrEqual(0);
             expect(a.hardest).toBeGreaterThanOrEqual(1);
             expect(a.hardest).toBeLessThanOrEqual(8);
+        }
+    });
+});
+
+describe('generateDailyQueensRegions (puzzle del día)', () => {
+    it('con el mismo RNG sembrado, el generador base es determinístico', () => {
+        const a = generateQueensRegions(200, seededRng('prueba'));
+        const b = generateQueensRegions(200, seededRng('prueba'));
+
+        expect(a).toEqual(b);
+    });
+
+    it('la misma fecha da siempre el mismo tablero', { timeout: 60_000 }, () => {
+        const a = generateDailyQueensRegions('2026-07-11');
+        const b = generateDailyQueensRegions('2026-07-11');
+
+        expect(a).toEqual(b);
+    });
+
+    it('fechas distintas dan tableros distintos', { timeout: 60_000 }, () => {
+        expect(generateDailyQueensRegions('2026-07-11')).not.toEqual(generateDailyQueensRegions('2026-07-12'));
+    });
+
+    it('el tablero del día es válido, contiguo y de solución única', { timeout: 60_000 }, () => {
+        for (const fecha of ['2026-01-01', '2026-07-11', '2026-12-31']) {
+            const regions = generateDailyQueensRegions(fecha);
+
+            expect(contiguous(regions)).toBe(true);
+            expect(countSolutions(regions)).toBe(1);
+            expect(solutionIsValid(regions, solveQueens(regions))).toBe(true);
         }
     });
 });

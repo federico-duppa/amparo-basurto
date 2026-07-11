@@ -4,7 +4,9 @@
 // Antes lo armaba el backend y lo mandaba en el HTML; ahora la partida se calcula
 // en el navegador y no hace falta ninguna llamada al servidor para jugar ni para
 // pedir un tablero nuevo.
-//
+
+import { seededRng } from './rng.js';
+
 // Devuelve las regiones (int[8][8], índice 0..7) de un tablero con SOLUCIÓN ÚNICA
 // y REGIONES CONTIGUAS. En tres pasos: (1) una colocación válida de reinas; (2)
 // regiones que crecen como manchas alrededor de cada reina hasta cubrir todo; (3)
@@ -12,13 +14,15 @@
 // celda de borde a una región vecina para invalidarla, cuidando no partir ninguna
 // región. Si un tablero se traba antes de quedar único, se descarta y se prueba
 // otro (la tasa de éxito real es ~1 de cada 4).
-export function generateQueensRegions(maxAttempts = 200) {
+// Todo el azar pasa por `rng` (mismo contrato que Math.random): sembrado con
+// la fecha genera el puzzle del día, idéntico en cualquier dispositivo.
+export function generateQueensRegions(maxAttempts = 200, rng = Math.random) {
     const N = 8;
     const CARVE_STEPS = 300;
 
     const shuffle = (arr) => {
         for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = Math.floor(rng() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
         return arr;
@@ -64,14 +68,14 @@ export function generateQueensRegions(maxAttempts = 200) {
         });
         let remaining = N * N - N;
         while (remaining > 0 && frontier.length) {
-            const idx = Math.floor(Math.random() * frontier.length);
+            const idx = Math.floor(rng() * frontier.length);
             const [r, c] = frontier[idx];
             const free = orthogonal(r, c).filter(([nr, nc]) => region[nr][nc] === -1);
             if (!free.length) {
                 frontier.splice(idx, 1);
                 continue;
             }
-            const [nr, nc] = free[Math.floor(Math.random() * free.length)];
+            const [nr, nc] = free[Math.floor(rng() * free.length)];
             region[nr][nc] = region[r][c];
             frontier.push([nr, nc]);
             remaining--;
@@ -157,7 +161,7 @@ export function generateQueensRegions(maxAttempts = 200) {
             if (!neighborRegions.size) continue;
             if (!regionStaysConnectedWithout(regions, g, r, c)) continue;
             const targets = [...neighborRegions];
-            regions[r][c] = targets[Math.floor(Math.random() * targets.length)];
+            regions[r][c] = targets[Math.floor(rng() * targets.length)];
             return true;
         }
         return false;
@@ -701,13 +705,13 @@ export function rateQueensDifficulty(regions) {
 // Los defaults salen de calibrar sobre 400 tableros crudos (score p50=6, p75=10,
 // p90=18): con minScore=14 el peor tablero servido ronda el p90 crudo y la
 // mediana lo supera, tardando ~25 ms acá (~140 ms el peor caso medido).
-export function generateHardQueensRegions({ minScore = 14, candidates = 24, budgetMs = 300 } = {}) {
+export function generateHardQueensRegions({ minScore = 14, candidates = 24, budgetMs = 300, rng = Math.random } = {}) {
     const started = Date.now();
     let best = null;
     let bestScore = -1;
 
     for (let i = 0; i < candidates; i++) {
-        const regions = generateQueensRegions();
+        const regions = generateQueensRegions(200, rng);
         const { score } = rateQueensDifficulty(regions);
         if (score > bestScore) {
             best = regions;
@@ -717,4 +721,15 @@ export function generateHardQueensRegions({ minScore = 14, candidates = 24, budg
     }
 
     return best;
+}
+
+// El puzzle del día: un tablero fijo por fecha, igual para todos. El RNG se
+// siembra con la fecha y se saca el presupuesto de tiempo (cortar por reloj
+// haría que cada dispositivo viera un tablero distinto); el corte por puntaje
+// sí es determinístico. Menos candidatos que el generador libre porque acá no
+// hay presupuesto que frene el peor caso.
+export function generateDailyQueensRegions(dateISO) {
+    const rng = seededRng('queens-' + dateISO);
+
+    return generateHardQueensRegions({ candidates: 12, budgetMs: Infinity, rng });
 }

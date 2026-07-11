@@ -214,6 +214,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Victorias del módulo Juegos (mejores tiempos y racha del puzzle del día).
+     *
+     * @return HasMany<GameResult, $this>
+     */
+    public function gameResults(): HasMany
+    {
+        return $this->hasMany(GameResult::class);
+    }
+
+    /**
      * Query "propio ∪ compartido" que repiten los `accessible*()`: las filas
      * de $model cuyo `user_id` sea este usuario, más las que llegan por la
      * relación `members()` de la pivote de compartir. Centraliza la regla de
