@@ -49,7 +49,7 @@ class AutoAdjuntosTest extends TestCase
         $vehicle = Vehicle::factory()->for($this->user)->create();
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('poliza.pdf', 120, 'application/pdf'))
             ->assertHasNoErrors();
 
@@ -65,7 +65,7 @@ class AutoAdjuntosTest extends TestCase
         $vehicle = Vehicle::factory()->for($this->user)->create();
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('oblea.jpg', 80, 'image/jpeg'))
             ->assertHasNoErrors();
 
@@ -80,7 +80,7 @@ class AutoAdjuntosTest extends TestCase
         $vehicle = Vehicle::factory()->for($this->user)->create();
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('apunte.txt', 10, 'text/plain'))
             ->assertHasErrors(['docFiles.'.$document->id => 'mimes']);
 
@@ -92,7 +92,7 @@ class AutoAdjuntosTest extends TestCase
         $vehicle = Vehicle::factory()->for($this->user)->create();
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('pesado.pdf', 11_000, 'application/pdf'))
             ->assertHasErrors(['docFiles.'.$document->id => 'max']);
 
@@ -106,7 +106,7 @@ class AutoAdjuntosTest extends TestCase
 
         // Contenido permitido pero extensión fuera del mapa: sin una extensión
         // confiable la descarga no sabría con qué Content-Type servirlo.
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('poliza.bin', 10, 'application/pdf'))
             ->assertHasErrors(['docFiles.'.$document->id => 'extensions']);
 
@@ -121,11 +121,11 @@ class AutoAdjuntosTest extends TestCase
             ->for($otro)
             ->create();
 
-        Vehicle::factory()->for($this->user)->create();
+        $vehicle = Vehicle::factory()->for($this->user)->create();
 
         $this->expectException(ModelNotFoundException::class);
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$documentoAjeno->id, UploadedFile::fake()->create('poliza.pdf', 10, 'application/pdf'));
     }
 
@@ -136,7 +136,7 @@ class AutoAdjuntosTest extends TestCase
         $vehicle->members()->attach($this->user);
         $document = VehicleDocument::factory()->for($vehicle)->for($owner)->create();
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->set('docFiles.'.$document->id, UploadedFile::fake()->create('seguro.pdf', 50, 'application/pdf'))
             ->assertHasNoErrors();
 
@@ -212,7 +212,7 @@ class AutoAdjuntosTest extends TestCase
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
         $attachment = $this->makeAttachment($document);
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->call('deleteDocumentAttachment', $attachment->id)
             ->assertHasNoErrors();
 
@@ -229,11 +229,11 @@ class AutoAdjuntosTest extends TestCase
             ->create();
         $attachment = VehicleDocumentAttachment::factory()->for($documentoAjeno, 'document')->for($otro)->create();
 
-        Vehicle::factory()->for($this->user)->create();
+        $vehicle = Vehicle::factory()->for($this->user)->create();
 
         $this->expectException(ModelNotFoundException::class);
 
-        Livewire::test('auto.panel')->call('deleteDocumentAttachment', $attachment->id);
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])->call('deleteDocumentAttachment', $attachment->id);
     }
 
     public function test_eliminar_el_documento_borra_sus_adjuntos_y_archivos(): void
@@ -242,7 +242,7 @@ class AutoAdjuntosTest extends TestCase
         $document = VehicleDocument::factory()->for($vehicle)->for($this->user)->create();
         $attachment = $this->makeAttachment($document);
 
-        Livewire::test('auto.panel')
+        Livewire::test('auto.documentos', ['vehicleId' => $vehicle->id])
             ->call('deleteDocument', $document->id)
             ->assertHasNoErrors();
 

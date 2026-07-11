@@ -174,6 +174,18 @@ class Vehicle extends Model
         return $this->hasMany(MaintenanceItem::class);
     }
 
+    /** Da de alta un ítem de mantenimiento a seguir (el alta manual y los presets). */
+    public function addMaintenanceItem(string $name, ?int $intervalKm, ?int $intervalMonths, int $userId): void
+    {
+        $item = $this->maintenanceItems()->make([
+            'name' => $name,
+            'interval_km' => $intervalKm,
+            'interval_months' => $intervalMonths,
+        ]);
+        $item->user_id = $userId;
+        $item->save();
+    }
+
     /**
      * @return HasMany<MaintenanceRecord, $this>
      */
