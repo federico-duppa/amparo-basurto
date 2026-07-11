@@ -115,9 +115,28 @@ describe('nextDeduction', () => {
     });
 });
 
+describe('countSolutions', () => {
+    it('un tablero pre-puesto que rompe una regla cuenta cero soluciones', () => {
+        // Regresión: las casillas pre-puestas se validan al pasar por ellas.
+        // Saltearlas dejaba contar "soluciones" con tres seguidos, y ese
+        // fantasma rompía la deducción de último recurso (dificultad null).
+        const givens = Array.from({ length: N }, () => Array(N).fill(EMPTY));
+        givens[0][0] = SOL;
+        givens[0][1] = SOL;
+        givens[0][2] = SOL;
+
+        expect(countSolutions(givens, [], 2)).toBe(0);
+
+        const conVinculo = Array.from({ length: N }, () => Array(N).fill(EMPTY));
+        conVinculo[2][2] = SOL;
+        conVinculo[2][3] = LUNA;
+        expect(countSolutions(conVinculo, [{ r: 2, c: 2, dir: 'h', kind: 'eq' }], 2)).toBe(0);
+    });
+});
+
 describe('dificultad', () => {
     it('todo puzzle generado se puede puntuar', () => {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 40; i++) {
             const score = rateSolYLunaDifficulty(generateSolYLunaPuzzle());
             expect(score).not.toBeNull();
             expect(score).toBeGreaterThan(0);

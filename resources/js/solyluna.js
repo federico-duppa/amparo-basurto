@@ -93,6 +93,11 @@ function violatesConstraintsBackwards(grid, r, c, s, constraints) {
 /**
  * Cuenta soluciones de un puzzle (dados + vínculos), cortando en `cap`.
  * Independiente del generador: es la vara de la unicidad.
+ *
+ * Las casillas pre-puestas también se validan al pasar por ellas (como si
+ * fueran una jugada forzada): saltearlas sin chequear dejaba pasar tableros
+ * que rompían una regla contra una casilla puesta más adelante, y ese
+ * sobreconteo fantasma hacía fallar la deducción de último recurso.
  */
 export function countSolutions(givens, constraints, cap = 2) {
     const grid = cloneGrid(givens);
@@ -108,7 +113,11 @@ export function countSolutions(givens, constraints, cap = 2) {
         const c = idx % N;
 
         if (grid[r][c] !== EMPTY) {
-            fill(idx + 1);
+            const s = grid[r][c];
+            grid[r][c] = EMPTY;
+            const ok = fitsBackwards(grid, r, c, s) && !violatesConstraintsBackwards(grid, r, c, s, constraints);
+            grid[r][c] = s;
+            if (ok) fill(idx + 1);
             return;
         }
 
