@@ -3,6 +3,7 @@
 import focus from '@alpinejs/focus';
 
 import { generateHardQueensRegions, nextDeduction, solveQueens } from './queens';
+import { EMPTY, generateHardSolYLuna, LUNA, N as SYL_N, nextDeduction as nextSolYLunaDeduction, SOL } from './solyluna';
 
 // Nombres de los tintes de región del tablero de Queens (--color-q1..q8, mismo
 // orden que los tokens del tema) para que la pista pueda decir "el color arena".
@@ -229,6 +230,308 @@ document.addEventListener('alpine:init', () => {
                 const el = this.$refs.yearsBox && this.$refs.yearsBox.querySelector('[data-current="true"]');
                 if (el) el.scrollIntoView({ block: 'center' });
             });
+        },
+    }));
+
+    // Tablero de Sol y luna: igual que Queens, TODO vive en el cliente — la
+    // partida se genera y se juega en el navegador, sin llamadas al backend
+    // (generateSolYLunaPuzzle en resources/js/solyluna.js).
+    Alpine.data('solyluna', () => ({
+        N: SYL_N,
+        puzzle: null,
+        board: [],
+        badCells: new Set(),
+        won: false,
+        elapsed: 0,
+        startedAt: null,
+        timer: null,
+        muted: false,
+        audioCtx: null,
+        // Pila de deshacer: una foto del tablero por acción.
+        history: [],
+        // Pista: casillas resaltadas + cartelito. 'cell' señala dónde va un
+        // símbolo (lo ponés vos); 'error' marca algo mal puesto.
+        hintCells: [],
+        hintKind: null,
+        hintMessage: '',
+        // Vínculos indexados por casilla para pintarlos rápido en el template.
+        links: {},
+
+        init() {
+            this.muted = localStorage.getItem('solyluna-muted') === '1';
+            this.newGame();
+        },
+
+        destroy() {
+            this.stopTimer();
+        },
+
+        newGame() {
+            this.puzzle = generateHardSolYLuna();
+            this.links = {};
+            for (const k of this.puzzle.constraints) {
+                this.links[k.r + ',' + k.c + ',' + k.dir] = k.kind === 'eq' ? '=' : '×';
+            }
+            this.resetBoard();
+        },
+
+        // Vacía lo jugado sin cambiar el puzzle (los dados quedan).
+        vaciar() {
+            this.resetBoard();
+        },
+
+        resetBoard() {
+            this.board = this.puzzle.givens.map((row) => row.slice());
+            this.badCells = new Set();
+            this.won = false;
+            this.history = [];
+            this.clearHint();
+            this.elapsed = 0;
+            this.startedAt = null;
+            this.stopTimer();
+        },
+
+        isGiven(r, c) {
+            return this.puzzle.givens[r][c] !== EMPTY;
+        },
+
+        // Un toque cicla la casilla: vacía → sol → luna → vacía. Los dados no
+        // se tocan.
+        cycle(r, c) {
+            if (this.won || this.isGiven(r, c)) return;
+            if (!this.startedAt) this.startTimer();
+            this.clearHint();
+            this.history.push(this.board.map((row) => row.slice()));
+
+            const s = this.board[r][c];
+            this.board[r][c] = s === EMPTY ? SOL : s === SOL ? LUNA : EMPTY;
+            if (this.board[r][c] === SOL) this.sfxSol();
+            if (this.board[r][c] === LUNA) this.sfxLuna();
+
+            this.check();
+        },
+
+        get canUndo() {
+            return this.history.length > 0 && !this.won;
+        },
+
+        undo() {
+            if (!this.canUndo) return;
+            this.clearHint();
+            this.board = this.history.pop();
+            this.blip([440, 330], { type: 'triangle', gain: 0.07, dur: 0.09, gap: 0.06 });
+            this.check();
+        },
+
+        // Marca en rojo lo que rompe una regla a la vista: tres seguidos, más
+        // de tres por línea, o un vínculo contradicho.
+        check() {
+            const bad = new Set();
+            const mark = (r, c) => bad.add(r + ',' + c);
+
+            for (let i = 0; i < this.N; i++) {
+                for (const cells of [
+                    Array.from({ length: this.N }, (_, j) => [i, j]),
+                    Array.from({ length: this.N }, (_, j) => [j, i]),
+                ]) {
+                    for (let j = 0; j + 2 < this.N; j++) {
+                        const s = this.board[cells[j][0]][cells[j][1]];
+                        if (s !== EMPTY && s === this.board[cells[j + 1][0]][cells[j + 1][1]] && s === this.board[cells[j + 2][0]][cells[j + 2][1]]) {
+                            mark(...cells[j]);
+                            mark(...cells[j + 1]);
+                            mark(...cells[j + 2]);
+                        }
+                    }
+                    for (const s of [SOL, LUNA]) {
+                        const ofS = cells.filter(([r, c]) => this.board[r][c] === s);
+                        if (ofS.length > this.N / 2) ofS.forEach(([r, c]) => mark(r, c));
+                    }
+                }
+            }
+
+            for (const k of this.puzzle.constraints) {
+                const b = k.dir === 'h' ? [k.r, k.c + 1] : [k.r + 1, k.c];
+                const va = this.board[k.r][k.c];
+                const vb = this.board[b[0]][b[1]];
+                if (va === EMPTY || vb === EMPTY) continue;
+                if ((k.kind === 'eq' && va !== vb) || (k.kind === 'ne' && va === vb)) {
+                    mark(k.r, k.c);
+                    mark(...b);
+                }
+            }
+
+            this.badCells = bad;
+            const full = this.board.every((row) => !row.includes(EMPTY));
+            const nowWon = full && bad.size === 0;
+            if (nowWon && !this.won) this.sfxVictory();
+            this.won = nowWon;
+            if (this.won) this.stopTimer();
+        },
+
+        isBad(r, c) {
+            return this.badCells.has(r + ',' + c);
+        },
+
+        // --- Pista ---------------------------------------------------------
+        // Primero busca un error (para eso sí compara contra la solución: es
+        // detección, no ayuda); si no hay, pide la próxima deducción al motor
+        // y la señala para que la juegues vos.
+
+        clearHint() {
+            this.hintCells = [];
+            this.hintKind = null;
+            this.hintMessage = '';
+        },
+
+        isHint(r, c) {
+            return this.hintCells.some((cell) => cell.r === r && cell.c === c);
+        },
+
+        pista() {
+            if (this.won) return;
+
+            for (let r = 0; r < this.N; r++) {
+                for (let c = 0; c < this.N; c++) {
+                    if (this.board[r][c] !== EMPTY && this.board[r][c] !== this.puzzle.solution[r][c]) {
+                        return this.showHint([{ r, c }], 'error', 'Ojo: esa casilla no va así.');
+                    }
+                }
+            }
+
+            const d = nextSolYLunaDeduction(this.board, this.puzzle.constraints);
+            if (!d) {
+                this.clearHint();
+                this.hintMessage = 'Acá no encuentro una deducción simple. Probá una jugada y deshacé si no cierra.';
+
+                return;
+            }
+
+            const simbolo = d.symbol === SOL ? 'sol' : 'luna';
+            this.showHint(d.cells, 'cell', d.message + (d.cells.length > 1 ? '' : ` (tocá hasta dejar ${simbolo}).`));
+        },
+
+        showHint(cells, kind, message) {
+            this.hintCells = cells;
+            this.hintKind = kind;
+            this.hintMessage = message;
+            this.blip([587.33, 880], { type: 'sine', gain: 0.09, dur: 0.11, gap: 0.07 });
+        },
+
+        // --- Cronómetro ------------------------------------------------------
+
+        startTimer() {
+            if (this.timer) return;
+            this.startedAt = Date.now() - this.elapsed * 1000;
+            this.timer = setInterval(() => {
+                this.elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
+            }, 250);
+        },
+
+        stopTimer() {
+            if (this.timer) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
+        },
+
+        get timeLabel() {
+            const m = Math.floor(this.elapsed / 60);
+            const s = this.elapsed % 60;
+            return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        },
+
+        // --- Presentación ----------------------------------------------------
+
+        filledCount() {
+            let n = 0;
+            for (const row of this.board) for (const s of row) if (s !== EMPTY) n++;
+            return n;
+        },
+
+        showSol(r, c) {
+            return this.board[r][c] === SOL;
+        },
+
+        showLuna(r, c) {
+            return this.board[r][c] === LUNA;
+        },
+
+        linkRight(r, c) {
+            return this.links[r + ',' + c + ',h'] ?? null;
+        },
+
+        linkDown(r, c) {
+            return this.links[r + ',' + c + ',v'] ?? null;
+        },
+
+        cellLabel(r, c) {
+            const s = this.board[r][c];
+            const estado = s === SOL ? 'sol' : s === LUNA ? 'luna' : 'vacía';
+            return 'Fila ' + (r + 1) + ', columna ' + (c + 1) + ', ' + estado + (this.isGiven(r, c) ? ', fija' : '');
+        },
+
+        get cellList() {
+            const out = [];
+            for (let r = 0; r < this.N; r++) {
+                for (let c = 0; c < this.N; c++) out.push({ r, c });
+            }
+            return out;
+        },
+
+        // --- Sonido (Web Audio, sin archivos, igual que Queens) --------------
+
+        toggleMute() {
+            this.muted = !this.muted;
+            localStorage.setItem('solyluna-muted', this.muted ? '1' : '0');
+            if (!this.muted) this.ensureAudio();
+        },
+
+        ensureAudio() {
+            if (this.muted) return null;
+            if (!this.audioCtx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                try {
+                    this.audioCtx = new AC();
+                } catch (e) {
+                    return null;
+                }
+            }
+            if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+            return this.audioCtx;
+        },
+
+        blip(freqs, { type = 'sine', gain = 0.15, dur = 0.12, gap = 0 } = {}) {
+            const ctx = this.ensureAudio();
+            if (!ctx) return;
+            const step = gap || dur * 0.9;
+            freqs.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const vol = ctx.createGain();
+                const start = ctx.currentTime + i * step;
+                osc.type = type;
+                osc.frequency.value = freq;
+                vol.gain.setValueAtTime(0.0001, start);
+                vol.gain.linearRampToValueAtTime(gain, start + 0.008);
+                vol.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+                osc.connect(vol);
+                vol.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + dur + 0.02);
+            });
+        },
+
+        sfxSol() {
+            this.blip([783.99], { type: 'triangle', gain: 0.09, dur: 0.1 });
+        },
+
+        sfxLuna() {
+            this.blip([392], { type: 'sine', gain: 0.09, dur: 0.12 });
+        },
+
+        sfxVictory() {
+            this.blip([523.25, 659.25, 783.99, 1046.5], { type: 'sine', gain: 0.16, dur: 0.26, gap: 0.13 });
         },
     }));
 
