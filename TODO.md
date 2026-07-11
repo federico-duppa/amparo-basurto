@@ -17,7 +17,6 @@ Cómo se mantiene este archivo está en [CLAUDE.md](CLAUDE.md#backlog-todomd--wo
 
 ## Salud (`/salud`)
 
-- **Aceptar imágenes además de PDF en los adjuntos.** La foto de una receta o de un resultado sacada con el teléfono es el caso más común después del PDF; hoy los adjuntos solo aceptan PDF.
 - **Reporte imprimible/exportable** de la historia para llevar al médico.
 
 ## Tareas (`/tareas`)

@@ -9,13 +9,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Un PDF adjunto a una historia clínica: receta, orden, estudio, certificado.
- * Puede colgar de una entrada del timeline o estar suelto en la historia.
+ * Un archivo adjunto a una historia clínica: receta, orden, estudio, certificado,
+ * en PDF o como foto. Puede colgar de una entrada del timeline o estar suelto
+ * en la historia.
  */
 class HealthAttachment extends Model
 {
     /** @use HasFactory<HealthAttachmentFactory> */
     use HasFactory;
+
+    /**
+     * Extensiones aceptadas y el Content-Type con el que se sirve cada una.
+     * La validación de subida exige que la extensión esté acá (reglas `mimes`
+     * + `extensions`), así la descarga siempre sabe qué tipo entregar.
+     */
+    public const MIME_TYPES = [
+        'pdf' => 'application/pdf',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'heic' => 'image/heic',
+    ];
 
     protected $fillable = [
         'disk',
@@ -58,6 +73,23 @@ class HealthAttachment extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Content-Type según la extensión del nombre original. Los adjuntos
+     * anteriores a las imágenes no pasaron por la regla `extensions`, pero
+     * son todos PDF, que es justo el default.
+     */
+    public function mimeType(): string
+    {
+        $extension = strtolower(pathinfo($this->original_name, PATHINFO_EXTENSION));
+
+        return self::MIME_TYPES[$extension] ?? 'application/pdf';
+    }
+
+    public function isImage(): bool
+    {
+        return str_starts_with($this->mimeType(), 'image/');
     }
 
     /** Tamaño legible para la interfaz, en formato es-AR ("1,2 MB", "340 KB"). */

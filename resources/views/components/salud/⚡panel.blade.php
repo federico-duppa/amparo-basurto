@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\SharesWithMembers;
+use App\Models\HealthAttachment;
 use App\Models\HealthEntry;
 use App\Models\HealthRecord;
 use Illuminate\Support\Collection;
@@ -64,13 +65,13 @@ new #[Title('Salud')] class extends Component
     public string $editEntryTitle = '';
     public string $editEntryDetail = '';
 
-    // PDF recién elegido en cada input. Van de a uno: el driver S3 de las
-    // subidas temporales de Livewire no soporta inputs con [multiple].
+    // Archivo (PDF o imagen) recién elegido en cada input. Van de a uno: el
+    // driver S3 de las subidas temporales de Livewire no soporta [multiple].
     public $recordFile = null;
     public $entryFile = null;
     public $editEntryFile = null;
 
-    // Tandas acumuladas de a un PDF, que se guardan junto con la entrada.
+    // Tandas acumuladas de a un archivo, que se guardan junto con la entrada.
     public array $entryFiles = [];
     public array $editEntryFiles = [];
 
@@ -321,7 +322,7 @@ new #[Title('Salud')] class extends Component
         }
     }
 
-    /** Saca de la tanda un PDF elegido para una entrada nueva, antes de guardar. */
+    /** Saca de la tanda un archivo elegido para una entrada nueva, antes de guardar. */
     public function removeEntryFile(int $index): void
     {
         unset($this->entryFiles[$index]);
@@ -337,7 +338,7 @@ new #[Title('Salud')] class extends Component
 
     // --- Adjuntos de la historia --------------------------------------------------
 
-    /** El PDF suelto se guarda apenas termina de subir, sin formulario aparte. */
+    /** El archivo suelto se guarda apenas termina de subir, sin formulario aparte. */
     public function updatedRecordFile(): void
     {
         if ($this->recordFile === null) {
@@ -359,7 +360,7 @@ new #[Title('Salud')] class extends Component
         $this->recordFile = null;
     }
 
-    /** Cada PDF elegido para una entrada se suma a su tanda; se guarda con ella. */
+    /** Cada archivo elegido para una entrada se suma a su tanda; se guarda con ella. */
     public function updatedEntryFile(): void
     {
         $this->addToBatch('entryFile', 'entryFiles');
@@ -421,15 +422,30 @@ new #[Title('Salud')] class extends Component
         }
     }
 
+    /**
+     * PDF o imagen de hasta 10 MB. `mimes` valida el contenido real y
+     * `extensions` que el nombre tenga una extensión del mapa del modelo,
+     * que es de donde sale el Content-Type al descargar.
+     */
+    private function fileRules(): array
+    {
+        $extensions = implode(',', array_keys(HealthAttachment::MIME_TYPES));
+
+        return ['file', 'mimes:'.$extensions, 'extensions:'.$extensions, 'max:10240'];
+    }
+
+    private const FILE_TYPE_MESSAGE = 'Solo puedo guardar PDF o imágenes (JPG, PNG, WebP o HEIC).';
+
     private function pickRules(string $property): array
     {
-        return [$property => ['file', 'mimes:pdf', 'max:10240']];
+        return [$property => $this->fileRules()];
     }
 
     private function pickMessages(string $property): array
     {
         return [
-            $property.'.mimes' => 'Por ahora solo puedo guardar PDF.',
+            $property.'.mimes' => self::FILE_TYPE_MESSAGE,
+            $property.'.extensions' => self::FILE_TYPE_MESSAGE,
             $property.'.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
         ];
     }
@@ -438,7 +454,7 @@ new #[Title('Salud')] class extends Component
     {
         return [
             $property => ['array', 'max:10'],
-            $property.'.*' => ['file', 'mimes:pdf', 'max:10240'],
+            $property.'.*' => $this->fileRules(),
         ];
     }
 
@@ -446,7 +462,8 @@ new #[Title('Salud')] class extends Component
     {
         return [
             $property.'.max' => 'Hasta 10 archivos por entrada.',
-            $property.'.*.mimes' => 'Por ahora solo puedo guardar PDF.',
+            $property.'.*.mimes' => self::FILE_TYPE_MESSAGE,
+            $property.'.*.extensions' => self::FILE_TYPE_MESSAGE,
             $property.'.*.max' => 'Ese archivo pesa más de 10 MB y no lo puedo guardar.',
         ];
     }
@@ -507,7 +524,7 @@ new #[Title('Salud')] class extends Component
         return $this->record?->members()->orderBy('name')->get() ?? collect();
     }
 
-    /** Los PDF sueltos de la historia (los de entradas se ven en el timeline). */
+    /** Los archivos sueltos de la historia (los de entradas se ven en el timeline). */
     #[Computed]
     public function documents(): Collection
     {
@@ -885,18 +902,18 @@ new #[Title('Salud')] class extends Component
         {{-- Contactos médicos --}}
         <livewire:salud.contactos :record-id="$record->id" :key="'contactos-'.$record->id" />
 
-        {{-- Adjuntos: PDFs sueltos de la historia --}}
+        {{-- Adjuntos: archivos sueltos de la historia (PDF o imágenes) --}}
         <div class="space-y-3 rounded-sm border border-cuero/20 p-4" x-data="{ falloSubida: false }">
             <div class="flex flex-wrap items-start gap-2">
                 <div class="min-w-0 flex-1">
                     <h2 class="font-brand text-lg font-bold">Adjuntos</h2>
-                    <p class="text-sm text-cuero/60">Certificados, estudios y otros PDF de la historia. Si es de una consulta puntual, también podés adjuntarlo al anotar la entrada.</p>
+                    <p class="text-sm text-cuero/60">Certificados, estudios y otros papeles de la historia, en PDF o como foto. Si es de una consulta puntual, también podés adjuntarlo al anotar la entrada.</p>
                 </div>
                 <label class="shrink-0">
-                    <input type="file" wire:model="recordFile" accept="application/pdf,.pdf" class="peer sr-only"
+                    <input type="file" wire:model="recordFile" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.pdf,.jpg,.jpeg,.png,.webp,.heic" class="peer sr-only"
                         x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                     <span class="grid min-h-11 cursor-pointer place-items-center rounded-sm bg-monte px-4 text-sm font-medium text-crema hover:bg-monte/90 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-monte">
-                        Subir PDF
+                        Subir archivo
                     </span>
                 </label>
             </div>
@@ -906,17 +923,24 @@ new #[Title('Salud')] class extends Component
             @error('recordFile') <p class="text-sm text-teja" role="alert">{{ $message }}</p> @enderror
 
             @if ($this->documents->isEmpty())
-                <p class="text-sm text-cuero/60">Todavía no hay documentos en esta historia. Subí un PDF y queda guardado acá.</p>
+                <p class="text-sm text-cuero/60">Todavía no hay documentos en esta historia. Subí un PDF o una foto y queda guardado acá.</p>
             @else
                 <ul class="divide-y divide-cuero/15 border-y border-cuero/15">
                     @foreach ($this->documents as $document)
                         <li wire:key="attachment-{{ $document->id }}" class="flex items-center gap-2 py-2">
                             <a href="{{ route('salud.adjunto', $document) }}" download="{{ $document->original_name }}"
                                 class="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-cuero hover:text-ciruela focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ciruela">
-                                {{-- Heroicon: paper-clip (outline) --}}
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5 shrink-0 text-cuero/60">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                                </svg>
+                                @if ($document->isImage())
+                                    {{-- Heroicon: photo (outline) --}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5 shrink-0 text-cuero/60">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                    </svg>
+                                @else
+                                    {{-- Heroicon: paper-clip (outline) --}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="size-5 shrink-0 text-cuero/60">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                                    </svg>
+                                @endif
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-medium">{{ $document->original_name }}</span>
                                     <span class="block text-xs text-cuero/50">{{ $document->created_at->format('d/m/Y') }} · {{ $document->sizeLabel() }} · {{ $document->user->name }}</span>
@@ -1023,11 +1047,11 @@ new #[Title('Salud')] class extends Component
                     </div>
                     <div x-data="{ falloSubida: false }">
                         <label class="inline-block">
-                            <span class="sr-only">Adjuntar PDF a la entrada</span>
-                            <input type="file" wire:model="entryFile" accept="application/pdf,.pdf" class="peer sr-only"
+                            <span class="sr-only">Adjuntar archivo a la entrada</span>
+                            <input type="file" wire:model="entryFile" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.pdf,.jpg,.jpeg,.png,.webp,.heic" class="peer sr-only"
                                 x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                             <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
-                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
+                                Adjuntar PDF o foto <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
                             </span>
                         </label>
                         <p wire:loading wire:target="entryFile" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>
@@ -1136,11 +1160,11 @@ new #[Title('Salud')] class extends Component
                                             </ul>
                                         @endif
                                         <label class="inline-block">
-                                            <span class="sr-only">Adjuntar PDF a la entrada</span>
-                                            <input type="file" wire:model="editEntryFile" accept="application/pdf,.pdf" class="peer sr-only"
+                                            <span class="sr-only">Adjuntar archivo a la entrada</span>
+                                            <input type="file" wire:model="editEntryFile" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.pdf,.jpg,.jpeg,.png,.webp,.heic" class="peer sr-only"
                                                 x-on:livewire-upload-start="falloSubida = false" x-on:livewire-upload-error="falloSubida = true">
                                             <span class="inline-grid min-h-11 cursor-pointer place-items-center rounded-sm border border-cuero/30 px-4 text-sm text-cuero/80 hover:text-cuero peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ciruela">
-                                                Adjuntar PDF <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
+                                                Adjuntar PDF o foto <span class="ml-1 font-normal text-cuero/60">(opcional, de a uno)</span>
                                             </span>
                                         </label>
                                         <p wire:loading wire:target="editEntryFile" class="mt-1 text-sm text-cuero/60" role="status">Subiendo…</p>

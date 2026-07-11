@@ -20,8 +20,10 @@ class HealthAttachmentController extends Controller
     {
         auth()->user()->accessibleHealthRecords()->findOrFail($attachment->health_record_id);
 
+        // El Content-Type sale del modelo y no del disk: averiguarlo en el
+        // object storage costaría una llamada extra por descarga.
         return Storage::disk($attachment->disk)->download($attachment->path, $attachment->original_name, [
-            'Content-Type' => 'application/pdf',
+            'Content-Type' => $attachment->mimeType(),
         ]);
     }
 }
